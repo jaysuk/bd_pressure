@@ -6,9 +6,10 @@
 
 #### 2. Nozzle Probe
 
-<img src="https://static.wixstatic.com/media/0d0edf_1ebb592e9ab04beeacb07abdf56b3e41~mv2.jpg/v1/fill/w_1658,h_1604,al_c,q_85,usm_0.66_1.00_0.01/0d0edf_1ebb592e9ab04beeacb07abdf56b3e41~mv2.jpg" width='600'>
-<img src="https://static.wixstatic.com/media/0d0edf_08390d0d8b2947fb9dc51fb136b01c01~mv2.jpg/v1/fill/w_1338,h_802,al_c,q_85,usm_0.66_1.00_0.01/0d0edf_08390d0d8b2947fb9dc51fb136b01c01~mv2.jpg" width='400'>
+#### 3. All in one: No external PCB board, USB/I2C
 
+<img src="https://static.wixstatic.com/media/0d0edf_5b07659015334f90863ce9a552a895fd~mv2.jpg/v1/fill/w_1167,h_554,al_c,q_85/0d0edf_5b07659015334f90863ce9a552a895fd~mv2.jpg" width='800'>
+<img src="https://static.wixstatic.com/media/0d0edf_1ebb592e9ab04beeacb07abdf56b3e41~mv2.jpg/v1/fill/w_1658,h_1604,al_c,q_85,usm_0.66_1.00_0.01/0d0edf_1ebb592e9ab04beeacb07abdf56b3e41~mv2.jpg" width='800'>
 #### How it works?
 
 1. PA Mode:
