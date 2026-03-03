@@ -126,7 +126,7 @@ unsigned int tim14_n =0 ;
 int end_z=0;
 void find_normal_endstop(unsigned int *r_data,int length,char force);
 void USART2_printf(char *fmt,...);
-
+void set_open(int log);
 
  unsigned char process_cmd(void)
  {
@@ -168,6 +168,7 @@ void USART2_printf(char *fmt,...);
 				}
 				else if(cmd=='N'){ // use the current data 
 						R_CMD.set_normal=1;
+					  set_open(0);	
 				}
 				else if(cmd=='n'){ // auto find normal_z by default
 						R_CMD.set_normal=0;
@@ -390,7 +391,7 @@ void find_normal_endstop(unsigned int *r_data,int length,char force)
 		tim14_n=0;
 		 
 }	
-#define AVT_CN 6
+#define AVT_CN 4
 int process_triggered(void)
 { 
     int s_avt = 0,i,tmp_cn=0,vibration;
@@ -414,9 +415,9 @@ int process_triggered(void)
    // for i in range(length-1,length-1-20,-1):
 		//// check the average
 		
-		//for(i=r_index-1;i>r_index-1-AVT_CN;i--)	
-    //    s_avt = s_avt+raw_dat[get_ix(i)];
-   // s_avt = s_avt/AVT_CN;
+		for(i=r_index-1;i>r_index-1-AVT_CN;i--)	
+        s_avt = s_avt+raw_dat[get_ix(i)];
+    s_avt = s_avt/AVT_CN;
 
 		///// filter the vibration
 		vibration =1;
@@ -444,16 +445,18 @@ int process_triggered(void)
 		
 		}*/
 		///
-		i=r_index-1;
-		s_avt=raw_dat[get_ix(i)];
-		if(abs(raw_dat[get_ix(i)]-normal_z)>=R_CMD.THRHOLD_Z
-			  // &&abs(raw_dat[get_ix(i-1)]-normal_z)>=(R_CMD.THRHOLD_Z-2)
-		    // &&abs(raw_dat[get_ix(i-2)]-normal_z)>=(R_CMD.THRHOLD_Z-3)
-			   &&end_z==0&&vibration){
+		 
+	//	s_avt=raw_dat[get_ix(i)];
+		if(abs(s_avt-normal_z)>=R_CMD.THRHOLD_Z
+			   &&end_z==0 ){
 			set_trigered(1);
 		  return 1;
 		}
-		else if(abs(s_avt-normal_z)<=(R_CMD.THRHOLD_Z*2/3)&&end_z==1){
+	//	else if ((normal_z-s_avt)>=4&&end_z==0 ){
+	//	   set_trigered(1);
+	//	   return 1;
+	//	}
+		else if(abs(s_avt-normal_z)<=(R_CMD.THRHOLD_Z/2)&&end_z==1){
 			set_open(1);	
 			return 0;
 		}
