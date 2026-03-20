@@ -1,4 +1,4 @@
-# BD_Pressure
+# Auto PA Calibration 
 As we know, different filaments, printing speeds, temperatures, etc. have different PA values that affect print quality significantly. Until now, very few printers on the market have automated PA calibration; many still require manual calibration, which is time-consuming and not everyone can do.
 
 
