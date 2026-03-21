@@ -37,7 +37,7 @@ Rather than printing calibration patterns and analysing them visually, bd_pressu
 3. The on-board MCU fits a pressure-vs-acceleration curve and derives the optimal PA value.
 4. The result is sent to the printer firmware via USB or I2C.
 
-This approach is conceptually similar to the automated calibration used in the Bambu Lab A1, but uses a **strain gauge** rather than an eddy current sensor — providing a direct force measurement that is largely filament-agnostic.
+This approach is conceptually similar to the automated calibration used in the Bambu Lab A1, but uses a **strain gauge** rather than an eddy current sensor — providing a direct force measurement.
 
 ### Mode 2 — Nozzle Probe
 
