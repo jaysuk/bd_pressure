@@ -9,6 +9,7 @@ Pressure Advance (PA) is one of the most impactful tuning parameters in FDM prin
 The same hardware doubles as a high-precision nozzle probe for bed levelling, acting as a drop-in switch-type endstop on the Z− pin.
 
 ---
+Video : https://youtu.be/xD0XgPfmwlg
 <img src="https://cdn.hackaday.io/images/1561891773995579614.png" width='600'>
 
 ## Features
