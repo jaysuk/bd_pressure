@@ -67,9 +67,9 @@ class BD_Pressure_Advance:
         if "usb" == self.port:
             self.usb.write('e;'.encode())
             self.usb.write((str(self.thrhold)+';').encode())
-           # response += self.usb.readline().decode('utf-8').strip()
+           # response += self.usb.readline().decode('utf-8', errors='ignore').strip()
         elif "i2c" == self.port: 
-          #  response += self.read_register('_version', 15).decode('utf-8')
+          #  response += self.read_register('_version', 15).decode('utf-8', errors='ignore')
           #  self.gcode.respond_info("%s "%(response))
             #self.write_register('endstop_thr',6)
             self.write_register('pa_probe_mode',2)
@@ -190,7 +190,7 @@ class BD_Pressure_Advance:
             toolhead.dwell(0.4)
             self.usb.write('D;'.encode())
             toolhead.dwell(0.4) 
-            response += self.usb.readline().decode('utf-8').strip()
+            response += self.usb.readline().decode('utf-8', errors='ignore').strip()
             
             while self.usb.in_waiting:
                 self.usb.read(self.usb.in_waiting)
@@ -204,7 +204,7 @@ class BD_Pressure_Advance:
             self.write_register('pa_probe_mode',7)
         #    toolhead.dwell(0.4)
             self.write_register('raw_data_out',0)
-            response += self.read_register('_version', 15).decode('utf-8')
+            response += self.read_register('_version', 15).decode('utf-8', errors='ignore')
         self.gcode.respond_info(".cmd_start %s: %s"%(self.port,response)) 
 
     def pa_data_process(self,gcmd,str_data):
@@ -247,8 +247,8 @@ class BD_Pressure_Advance:
                 self.usb.timeout = 1
                 
                 try:
-                    response = self.usb.read(self.usb.in_waiting or 1).decode('utf-8').strip() 
-                   # response += self.usb.readline().decode('utf-8').strip()
+                    response = self.usb.read(self.usb.in_waiting or 1).decode('utf-8', errors='ignore').strip() 
+                   # response += self.usb.readline().decode('utf-8', errors='ignore').strip()
                     #self.usb.write('l;'.encode())
                    # self.gcode.respond_info("%s: %s........"%(self.bd_name,response))
                 except:
@@ -260,7 +260,7 @@ class BD_Pressure_Advance:
                     self.pa_data_process(gcmd,self.old_res)
                     
         elif "i2c" == self.port:
-            response = self.read_register('_measure_data', 32).decode('utf-8').strip('\0')
+            response = self.read_register('_measure_data', 32).decode('utf-8', errors='ignore').strip('\0')
             self.pa_data_process(gcmd,response)
         #if self.is_debug == True:
         #    self.gcode.respond_info("bdwidth, port:%s, width:%.3f mm (%d),motion:%d" % (self.port,self.lastFilamentWidthReading,
@@ -290,9 +290,9 @@ class BD_Pressure_Advance:
         if "usb" == self.port:
             self.usb.write('e;'.encode())
             self.usb.write('D;'.encode())
-           # response += self.usb.readline().decode('utf-8').strip()
+           # response += self.usb.readline().decode('utf-8', errors='ignore').strip()
         elif "i2c" == self.port: 
-           # response += self.read_register('_version', 15).decode('utf-8')
+           # response += self.read_register('_version', 15).decode('utf-8', errors='ignore')
             #self.write_register('endstop_thr',6)
             self.write_register('pa_probe_mode',2)
             self.write_register('raw_data_out',0)
@@ -347,7 +347,7 @@ class BD_Pressure_Advance:
         response = ""
         if "usb" == self.port:
             self.usb.write('N;'.encode())
-            response += self.usb.readline().decode('utf-8').strip()
+            response += self.usb.readline().decode('utf-8', errors='ignore').strip()
         elif "i2c" == self.port: 
             #response += self.read_register('reset_probe',52).decode('utf-8')   
             self.write_register('reset_probe',1)
