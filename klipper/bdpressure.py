@@ -2,11 +2,131 @@ import logging
 import math
 import statistics
 import serial
+import serial.tools.list_ports
 import os
+import time
 
 
 from . import bus
 from . import filament_switch_sensor
+
+
+# --- USB Auto-detection helpers ---
+
+# Version strings:
+#   bdpressure -> pandapi3dv1  (lowercase v)  identified by 'V;' command
+#   bdwidth    -> pandapi3dV1  (capital V)
+# We match on 'pandapi3dv' (lowercase v, case-sensitive) to identify bdpressure.
+BDPRESSURE_BAUD = 38400
+BDPRESSURE_VERSION_MARKER = 'endstop mode'   # lowercase v = bdpressure
+BDPRESSURE_PROBE_CMDS = [ b'e;\n']
+
+CH340_VID = 0x1A86
+CH340_KEYWORDS = ('ch340', 'ch341', '1a86', 'qinheng')
+
+
+def _list_all_serial_ports():
+    """Return all available serial port device paths."""
+    return [p.device for p in serial.tools.list_ports.comports()]
+
+
+def _list_ch340_ports():
+    found = set()
+
+    # --- Methods 1 & 2: pyserial comports() ---
+    for p in serial.tools.list_ports.comports():
+        vid = getattr(p, 'vid', None)
+        desc = (p.description or '').lower()
+        hwid = (p.hwid or '').lower()
+        if vid == CH340_VID:
+            found.add(p.device)
+            continue
+        if any(k in desc or k in hwid for k in CH340_KEYWORDS):
+            found.add(p.device)
+
+    # --- Method 3: /dev/serial/by-id/ symlink scan ---
+    by_id_dir = '/dev/serial/by-id'
+    if os.path.isdir(by_id_dir):
+        for name in os.listdir(by_id_dir):
+            if any(k in name.lower() for k in CH340_KEYWORDS):
+                symlink = os.path.join(by_id_dir, name)
+                try:
+                    real = os.path.realpath(symlink)
+                    found.add(real)
+                    logging.info(
+                        "bdpressure auto-detect: found CH340 via by-id: %s -> %s" % (name, real)
+                    )
+                except Exception:
+                    pass
+
+    return list(found)
+
+
+def _probe_port_for_bdpressure(port):
+    ser = None
+    try:
+        ser = serial.Serial(port, BDPRESSURE_BAUD, timeout=0.6)
+        time.sleep(0.2)
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
+
+        for cmd in BDPRESSURE_PROBE_CMDS:
+            ser.write(cmd)
+            line = ser.readline()
+            text = line.decode('utf-8', errors='ignore').strip()
+            logging.info(
+                "bdpressure auto-detect: port=%s baud=%d cmd=%r response=%r"
+                % (port, BDPRESSURE_BAUD, cmd, text)
+            )
+            # Lowercase v = bdpressure; capital V = bdwidth
+            if BDPRESSURE_VERSION_MARKER in text:
+                ser.close()
+                return port, text
+
+        ser.close()
+    except Exception as e:
+        logging.warning("bdpressure auto-detect: error probing %s at %d baud: %s"
+                        % (port, BDPRESSURE_BAUD, e))
+        if ser is not None:
+            try:
+                ser.close()
+            except Exception:
+                pass
+    return port, None
+
+def auto_detect_bdpressure_port(baud=38400):
+    # --- Pass 1: CH340-labelled ports ---
+    ch340_ports = _list_ch340_ports()
+    logging.info("bdpressure auto-detect: CH340 candidates = %s" % ch340_ports)
+    for port in ch340_ports:
+        matched_port, resp = _probe_port_for_bdpressure(port)
+        if resp is not None:
+            logging.info(
+                "bdpressure auto-detect: found BD_Pressure on %s (response: %r)" % (matched_port, resp)
+            )
+            return matched_port
+
+    # --- Pass 2: all serial ports (fallback) ---
+    all_ports = _list_all_serial_ports()
+    remaining = [p for p in all_ports if p not in ch340_ports]
+    logging.info(
+        "bdpressure auto-detect: CH340 pass found nothing; "
+        "trying remaining ports: %s" % remaining
+    )
+    for port in remaining:
+        matched_port, resp = _probe_port_for_bdpressure(port)
+        if resp is not None:
+            logging.info(
+                "bdpressure auto-detect: found BD_Pressure on %s (response: %r)" % (matched_port, resp)
+            )
+            return matched_port
+
+    logging.warning(
+        "bdpressure auto-detect: BD_Pressure not found. "
+        "Probed CH340=%s + fallback=%s. "
+        "Check klippy.log for per-port responses." % (ch340_ports, remaining)
+    )
+    return None
 
 
 BDP_CHIP_ADDR = 4
@@ -39,11 +159,21 @@ class BD_Pressure_Advance:
         if "i2c" in self.port:  
             self.i2c = bus.MCU_I2C_from_config(config, BDP_CHIP_ADDR, BDP_I2C_SPEED)
         elif "usb" in self.port:
-            self.usb_port = config.get("serial")
-            self._baud = config.getint('baud', 38400, minval=2400) 
-            #THRHOLD
-           # baudrate = self.usb_port = config.get("") #38400
-            self.usb = serial.Serial(self.usb_port, self._baud,timeout=0.5)
+            self._baud = config.getint('baud', 38400, minval=2400)
+            configured_serial = config.get("serial", None)
+            if configured_serial is None or configured_serial.strip().lower() == "auto":
+                # Auto-detect: scan CH340 ports and identify BD_Pressure
+                self.usb_port = auto_detect_bdpressure_port(self._baud)
+                if self.usb_port is None:
+                    raise config.error(
+                        "BD_Pressure_Advance: could not auto-detect USB port. "
+                        "No CH340 device responded as a BD_Pressure sensor. "
+                        "Set 'serial' explicitly in the config if auto-detection fails."
+                    )
+                logging.info("BD_Pressure_Advance: using auto-detected port %s" % self.usb_port)
+            else:
+                self.usb_port = configured_serial
+            self.usb = serial.Serial(self.usb_port, self._baud, timeout=0.5)
             self.usb.reset_input_buffer()
             self.usb.reset_output_buffer()
         self.PA_data = []    
