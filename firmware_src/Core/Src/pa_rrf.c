@@ -95,11 +95,15 @@ typedef struct {
 extern _Receive_D_shadow R_CMD;
 
 /* -----------------------------------------------------------------------
- * Extrusion amounts (mm) per move segment — from Klipper macro
+ * Extrusion ratio (mm filament per mm XY travel) — derived from the
+ * Klipper macro values: 0.92643 mm-E over 20 mm-X = 0.046322 mm/mm.
+ * Applied to the actual X distances from the params so the E amounts
+ * remain correct even if x_start/x_mid_l/x_mid_r/x_end are customised.
  * --------------------------------------------------------------------- */
-#define E_PRIME        9.92204f   /* initial fast prime move               */
-#define E_LOW_SEG      0.92643f   /* slow segment extrusion                */
-#define E_HIGH_SEG     1.85285f   /* fast segment extrusion                */
+#define E_PER_MM       0.046322f  /* filament mm per XY mm                 */
+
+/* Prime move: fixed distance (78→158 = 80 mm default) × ratio */
+/* Recalculated at runtime from params — see PA_RRF_PRIME state  */
 
 /* Dwell after the prime move (ms) */
 #define PRIME_DWELL_MS 4000
@@ -243,8 +247,11 @@ void pa_rrf_abort(void)
     /* Switch bd_pressure back to endstop mode */
     R_CMD.status_clk = ENDSTOP_OSR;
 
-    /* Tell RRF to stop any in-progress move and home */
-    rrf_send_raw("M112");          /* emergency stop — safe fallback */
+    /* Cancel any in-progress move cleanly (M0 = pause/cancel).
+     * M112 (emergency stop) is NOT used here — it halts RRF and requires
+     * the user to send M999 to recover.  M0 stops motion without locking
+     * the firmware, which is the right behaviour for a user-requested abort. */
+    rrf_send_raw("M0");
     USART2_printf("PA_RRF: aborted\n");
     s_state = PA_RRF_ABORTED;
 }
@@ -260,10 +267,11 @@ void pa_rrf_start(const pa_rrf_params_t *p)
         return;
     }
 
-    s_params      = *p;
-    s_data_count  = 0;
-    s_step        = 0;
-    s_result.valid = false;
+    s_params           = *p;
+    s_data_count       = 0;
+    s_step             = 0;
+    s_pa_list_snapshot = 0;   /* reset so stale value from a previous run is not used */
+    s_result.valid     = false;
 
     memset(s_data, 0, sizeof(s_data));
 
@@ -351,12 +359,11 @@ static bool _wait_ok_with_adc(const char *label, uint32_t timeout_ms)
 
         /* USB disconnect watchdog: if no ok has arrived for WATCHDOG_MS ms
          * since the last successful ok (or since start) abort the run.
-         * This fires only after the per-command timeout would already have
-         * triggered, so it acts as a belt-and-braces backstop. */
+         * s_state is set by the caller (all callers do { s_state = ABORTED; return; }
+         * on false), so we only need to restore endstop mode here. */
         if ((tim14_n - s_last_ok_time) >= WATCHDOG_MS) {
             USART2_printf("PA_RRF: watchdog — no ok for %u ms, aborting\n",
                           (unsigned)WATCHDOG_MS);
-            s_state = PA_RRF_ABORTED;
             R_CMD.status_clk = ENDSTOP_OSR;
             return false;
         }
@@ -368,6 +375,15 @@ static bool _cmd(const char *gcode)
 {
     rrf_send(gcode);
     return _wait_ok_with_adc(gcode, RRF_OK_TIMEOUT_MS);
+}
+
+/* Send numbered GCode line with an extended timeout — for homing moves
+ * (G28) which can take longer than RRF_OK_TIMEOUT_MS on large beds. */
+#define RRF_HOME_TIMEOUT_MS  60000u   /* 60 s — enough for any sane homing speed */
+static bool _cmd_long(const char *gcode)
+{
+    rrf_send(gcode);
+    return _wait_ok_with_adc(gcode, RRF_HOME_TIMEOUT_MS);
 }
 
 /* Send unnumbered GCode line (M555 P2, M110 N0), wait for "ok". */
@@ -392,18 +408,29 @@ static void _dwell_ms(uint32_t ms)
  *
  * Mirrors the Klipper logic: from the collected samples, find the one
  * with the lowest result value (pa.lib result encodes residual error —
- * lower is better).  Discard the first 5 samples (warm-up) and ignore
- * any with result == 0 (no data).
+ * lower is better).  Discard the first quarter of samples as warm-up
+ * (minimum 1, maximum 5) and ignore any with result == 0 (no data).
+ *
+ * Using a proportional warm-up skip means short runs (N=8) still get
+ * useful results instead of always requiring >5 samples before evaluating.
  * --------------------------------------------------------------------- */
 static bool _pick_best_pa(float *best_pa_out)
 {
-    if (s_data_count <= 5)
+    if (s_data_count == 0)
         return false;
 
-    uint8_t  best_idx   = 5;
+    /* Warm-up: skip first quarter of samples, at least 1, at most 5 */
+    uint8_t skip = s_data_count / 4;
+    if (skip < 1) skip = 1;
+    if (skip > 5) skip = 5;
+
+    if (s_data_count <= skip)
+        return false;
+
+    uint8_t  best_idx   = skip;
     uint8_t  best_score = 255;
 
-    for (uint8_t i = 5; i < s_data_count; i++)
+    for (uint8_t i = skip; i < s_data_count; i++)
     {
         if (s_data[i].result == 0)
             continue;
@@ -479,14 +506,21 @@ void pa_rrf_run(void)
 
     /* ------------------------------------------------------------------ */
     case PA_RRF_PRIME:
+    {
         USART2_printf("PA_RRF: prime move\n");
+
+        /* Calculate extrusion amounts from actual X distances.
+         * E_PER_MM is the filament-mm per XY-mm ratio derived from the
+         * Klipper macro reference values (0.046322 mm/mm).  Using the
+         * actual params means E stays correct if X coordinates are customised. */
+        float e_prime   = (s_params.x_end - s_params.x_start) * E_PER_MM;
 
         /* Fast move to start position while extruding prime bead */
         snprintf(buf, sizeof(buf), "G1 X%.2f Y%.2f F%lu E%.5f",
                  (double)s_params.x_start,
                  (double)s_params.y_base,
                  (unsigned long)s_params.speed_high,
-                 (double)E_PRIME);
+                 (double)e_prime);
         if (!_cmd(buf))              { s_state = PA_RRF_ABORTED; return; }
 
         /* Drain move buffer, then dwell to let sensor stabilise */
@@ -496,6 +530,7 @@ void pa_rrf_run(void)
         s_step  = 0;
         s_state = PA_RRF_STEP;
         break;
+    }
 
     /* ------------------------------------------------------------------ */
     case PA_RRF_STEP:
@@ -504,6 +539,11 @@ void pa_rrf_run(void)
             s_state = PA_RRF_FINISH;
             break;
         }
+
+        /* Calculate extrusion amounts from actual X distances */
+        float e_low  = (s_params.x_mid_l - s_params.x_start) * E_PER_MM;
+        float e_high = (s_params.x_mid_r - s_params.x_mid_l) * E_PER_MM;
+        float e_low2 = (s_params.x_end   - s_params.x_mid_r) * E_PER_MM;
 
         float pa_val = s_params.pa_start + s_step * s_params.pa_step;
         float y_pos  = s_params.y_base   + s_step * s_params.y_step;
@@ -525,7 +565,7 @@ void pa_rrf_run(void)
                  (double)s_params.x_mid_l,
                  (double)y_pos,
                  (unsigned long)s_params.speed_low,
-                 (double)E_LOW_SEG);
+                 (double)e_low);
         if (!_cmd(buf))              { s_state = PA_RRF_ABORTED; return; }
 
         /* High-speed segment: x_mid_l → x_mid_r */
@@ -533,7 +573,7 @@ void pa_rrf_run(void)
                  (double)s_params.x_mid_r,
                  (double)y_pos,
                  (unsigned long)s_params.speed_high,
-                 (double)E_HIGH_SEG);
+                 (double)e_high);
         if (!_cmd(buf))              { s_state = PA_RRF_ABORTED; return; }
 
         /* Low-speed segment: x_mid_r → x_end */
@@ -541,7 +581,7 @@ void pa_rrf_run(void)
                  (double)s_params.x_end,
                  (double)y_pos,
                  (unsigned long)s_params.speed_low,
-                 (double)E_LOW_SEG);
+                 (double)e_low2);
         if (!_cmd(buf))              { s_state = PA_RRF_ABORTED; return; }
 
         /* Drain move buffer — after this the sensor data is valid */
@@ -605,8 +645,10 @@ void pa_rrf_run(void)
             s_result.valid = false;
         }
 
-        /* Home X and Y to clean up toolhead position */
-        _cmd("G28 X Y");   /* best-effort */
+        /* Home X and Y to clean up toolhead position.
+         * Use the extended timeout — homing can take longer than
+         * RRF_OK_TIMEOUT_MS on large beds or slow homing speeds. */
+        _cmd_long("G28 X Y");   /* best-effort */
 
         /* Switch bd_pressure back to endstop/probe mode */
         R_CMD.status_clk = ENDSTOP_OSR;
