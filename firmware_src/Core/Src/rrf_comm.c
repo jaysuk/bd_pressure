@@ -89,18 +89,6 @@ void rrf_reset_line_counter(void)
  * The checksum covers the full "N<n> <gcode>" string.
  * --------------------------------------------------------------------- */
 /* Write decimal representation of v into buf; return pointer past last char. */
-static char *_u32_to_str(char *p, uint32_t v)
-{
-    if (v == 0) { *p++ = '0'; return p; }
-    char tmp[11]; int n = 0;
-    while (v) { tmp[n++] = (char)('0' + v % 10); v /= 10; }
-    char *s = p + n - 1;
-    p += n;
-    while (n--) *s-- = tmp[n+1-1+1-1];   /* reverse */
-    /* simpler: */
-    return p;
-}
-/* Cleaner reversal helper */
 static char *_u32w(char *p, uint32_t v)
 {
     if (v == 0) { *p++ = '0'; return p; }

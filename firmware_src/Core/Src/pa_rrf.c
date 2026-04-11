@@ -99,15 +99,6 @@ extern _Receive_D_shadow R_CMD;
  * --------------------------------------------------------------------- */
 
 /* Write unsigned decimal into buf; return pointer past last char. */
-static char *_u32_str(char *p, uint32_t v)
-{
-    char tmp[11]; int n = 0;
-    if (v == 0) { *p++ = '0'; return p; }
-    while (v) { tmp[n++] = (char)('0' + v % 10); v /= 10; }
-    while (n--) *p++ = tmp[n+1-1+1-1]; /* reverse */
-    return p;
-}
-/* Simpler: write reversed then flip */
 static char *_u32_s(char *p, uint32_t v)
 {
     if (v == 0) { *p++ = '0'; return p; }
@@ -631,18 +622,11 @@ void pa_rrf_run(void)
 
         s_step++;
 
-        /* Early-exit if we already have enough good data (mirrors Klipper) */
-        if (s_data_count >= 20)
+        /* Bail out if we have hit the data cap */
+        if (s_data_count >= PA_DATA_MAX)
         {
-            /* Check last 5 entries — if all show low residual, stop early */
-            bool good = true;
-            for (int i = (int)s_data_count - 5; i < (int)s_data_count; i++) {
-                if (s_data[i].result < 2) { good = false; break; }
-            }
-            if (good) {
-                USART2_printf("PA_RRF: early stop at step %u\n", s_step);
-                s_state = PA_RRF_FINISH;
-            }
+            USART2_printf("PA_RRF: data cap reached at step %u\n", s_step);
+            s_state = PA_RRF_FINISH;
         }
         break;
     }
@@ -701,7 +685,7 @@ void pa_rrf_run(void)
             { char *p = buf;
               memcpy(p, "M291 P\"Calibration complete!\\nBest Pressure Advance: ", 52); p += 52;
               p = _f_s(p, best_pa, 4);
-              memcpy(p, "\\n\\nAdd to config.g:\\nM572 D", 26); p += 26;
+              memcpy(p, "\\n\\nAdd to config.g:\\nM572 D", 25); p += 25;
               p = _u32_s(p, (uint32_t)s_params.extruder);
               memcpy(p, " S", 2); p += 2; p = _f_s(p, best_pa, 4);
               memcpy(p, "\" R\"bd_pressure PA Result\" S2", 29); p += 29; *p = '\0'; }
