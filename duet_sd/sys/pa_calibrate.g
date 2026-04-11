@@ -5,7 +5,7 @@
 ;
 ; Requirements:
 ;   - bd_pressure sensor connected to Duet USB (P0)
-;   - Firmware version: bd_pressure-rrf-v1 or later
+;   - Firmware version: bd_pressure-rrf-v2 or later
 ;   - Nozzle and bed homed before running (or set home_first = true below)
 
 ; -----------------------------------------------------------------------

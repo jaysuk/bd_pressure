@@ -4,7 +4,7 @@
 ; Place this file in /macros/ on the Duet SD card.
 ; Run via DWC macro button or: M98 P"/macros/bd_status.g"
 ;
-; The sensor responds with a single line on the USB serial port:
+; The sensor responds with a single line in the DWC console:
 ;   mode:<endstop|pa>;thr:<0-99>;inv:<0|1>;ver:v2
 ;
 ; Fields:
@@ -16,4 +16,4 @@
 M118 P2 S"bd_pressure: querying status..."
 M118 P0 S"s;"
 G4 P500
-M118 P2 S"bd_pressure: status response sent to USB serial. Expected format: mode:<endstop|pa>;thr:<n>;inv:<0|1>;ver:v2"
+M118 P2 S"bd_pressure: status response sent. Expected format: mode:<endstop|pa>;thr:<n>;inv:<0|1>;ver:v2"

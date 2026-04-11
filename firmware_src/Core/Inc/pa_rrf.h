@@ -63,8 +63,9 @@ typedef enum {
 void pa_rrf_params_default(pa_rrf_params_t *p);
 
 /* Parse parameter string from the "l:" trigger command.
- * Format: l:H<high>:L<low>:T<travel>:S<pa_step>:N<steps>:TEMP<temp>:E<extruder>;\n
+ * Format: l:H<high>:L<low>:T<travel>:S<pa_step>:N<steps>:E<extruder>;\n
  * Any field that is absent keeps the default value already in *p.
+ * Parameters are range-clamped after parsing — see pa_rrf_parse_params().
  * Call pa_rrf_params_default(p) first, then this function. */
 void pa_rrf_parse_params(pa_rrf_params_t *p, const char *param_str);
 

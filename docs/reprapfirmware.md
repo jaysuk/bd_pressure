@@ -43,6 +43,7 @@ G31 P500 X0 Y0 Z-0.03
 ### Step 4 — Copy macro files to the Duet SD card
 
 See the [Macro file locations](#macro-file-locations) table below.
+The files are pre-organised under `duet_sd/` in this repository to mirror the Duet SD card layout — copy the folder contents directly onto your Duet SD card.
 
 ### Step 5 — Verify the sensor
 
@@ -66,19 +67,21 @@ then run `M98 P"/sys/pa_calibrate.g"`.
 
 ## Macro file locations
 
-All provided macro files and where to place them on the Duet SD card:
+The files in this repository under `duet_sd/` mirror the Duet SD card layout exactly.
+Copy the `duet_sd/sys/` and `duet_sd/macros/` folders directly to your Duet SD card.
 
-| File | SD card location | Purpose |
+| Repository path | SD card location | Purpose |
 |---|---|---|
-| `macros/pa_calibrate.g` | `/sys/pa_calibrate.g` | Automated PA calibration — main workflow |
-| `macros/deployprobe.g` | `/sys/deployprobe.g` | Re-baseline sensor before each probe tap |
-| `macros/retractprobe.g` | `/sys/retractprobe.g` | Empty stub (required by RRF) |
-| `macros/bd_version.g` | `/macros/bd_version.g` | Query firmware version |
-| `macros/bd_status.g` | `/macros/bd_status.g` | Query mode, threshold, polarity |
-| `macros/bd_abort.g` | `/macros/bd_abort.g` | Abort PA calibration mid-run |
-| `macros/bd_set_threshold.g` | `/macros/bd_set_threshold.g` | Set probe trigger threshold |
-| `macros/bd_endstop_mode.g` | `/macros/bd_endstop_mode.g` | Switch to endstop/probe mode |
-| `macros/bd_pa_mode.g` | `/macros/bd_pa_mode.g` | Switch to PA mode (diagnostics) |
+| `duet_sd/sys/pa_calibrate.g` | `/sys/pa_calibrate.g` | Automated PA calibration — main workflow |
+| `duet_sd/sys/deployprobe.g` | `/sys/deployprobe.g` | Re-baseline sensor before each probe tap |
+| `duet_sd/sys/retractprobe.g` | `/sys/retractprobe.g` | Empty stub (required by RRF) |
+| `duet_sd/sys/config_example.g` | reference only — copy snippets into your `config.g` | Config snippets (M558, G31, M575) |
+| `duet_sd/macros/bd_version.g` | `/macros/bd_version.g` | Query firmware version |
+| `duet_sd/macros/bd_status.g` | `/macros/bd_status.g` | Query mode, threshold, polarity |
+| `duet_sd/macros/bd_abort.g` | `/macros/bd_abort.g` | Abort PA calibration mid-run |
+| `duet_sd/macros/bd_set_threshold.g` | `/macros/bd_set_threshold.g` | Set probe trigger threshold |
+| `duet_sd/macros/bd_endstop_mode.g` | `/macros/bd_endstop_mode.g` | Switch to endstop/probe mode |
+| `duet_sd/macros/bd_pa_mode.g` | `/macros/bd_pa_mode.g` | Switch to PA mode (diagnostics) |
 
 > `/sys/` files are called automatically by RRF (deploy/retract probe) or by the
 > calibration macro.  `/macros/` files are run manually from DWC or via `M98`.
@@ -128,8 +131,8 @@ G31 P500 X0 Y0 Z-0.03                 ; adjust Z offset after first probe run
 
 Add a `deployprobe.g` / `retractprobe.g` pair if you want the sensor re-baselined
 before each probe tap.  Ready-to-use files are provided at
-[macros/deployprobe.g](../macros/deployprobe.g) and
-[macros/retractprobe.g](../macros/retractprobe.g) — copy both to `/sys/`.
+[duet_sd/sys/deployprobe.g](../duet_sd/sys/deployprobe.g) and
+[duet_sd/sys/retractprobe.g](../duet_sd/sys/retractprobe.g) — copy both to `/sys/`.
 
 **`sys/deployprobe.g`**
 ```gcode
@@ -148,7 +151,7 @@ G4 P300                 ; dwell to let the ADC capture the new baseline
 
 ### 2. PA calibration macro (`sys/pa_calibrate.g`)
 
-The macro is provided ready to use at [macros/pa_calibrate.g](../macros/pa_calibrate.g).
+The macro is provided ready to use at [duet_sd/sys/pa_calibrate.g](../duet_sd/sys/pa_calibrate.g).
 Copy it to `/sys/` on your Duet SD card and edit the parameters at the top.
 
 Key features:
@@ -424,7 +427,7 @@ If a calibration run needs to be stopped mid-run (e.g. a crash, or wrong paramet
 M118 P0 S"a;"    ; abort PA calibration and return to endstop/probe mode
 ```
 
-A ready-to-use macro is provided at [macros/bd_abort.g](../macros/bd_abort.g) — copy it to `/macros/` and assign it to a DWC button for one-click abort.
+A ready-to-use macro is provided at [duet_sd/macros/bd_abort.g](../duet_sd/macros/bd_abort.g) — copy it to `/macros/` and assign it to a DWC button for one-click abort.
 
 The sensor will stop sending GCode to RRF, switch back to endstop mode, and issue `M112` to stop any in-progress move. The sensor also auto-aborts if no `ok` response is received from RRF for 30 seconds (USB disconnect watchdog).
 

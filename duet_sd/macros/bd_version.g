@@ -2,12 +2,10 @@
 ; Query the bd_pressure sensor firmware version.
 ;
 ; Place this file in /macros/ on the Duet SD card.
-; Run via: M98 P"/macros/bd_version.g"
+; Run via DWC macro button or: M98 P"/macros/bd_version.g"
 ;
-; The sensor will respond with: bd_pressure-rrf-v1
-; The response appears on the USB serial port the sensor is connected to.
-; On a Duet 3 / Duet 2 with the sensor on the PanelDue port (P1), enable
-; M575 serial pass-through to see it in DWC.
+; The sensor will respond with: bd_pressure-rrf-v2
+; The response appears in the DWC console (the sensor sends it as M118 P2).
 
 M118 P2 S"bd_pressure: sending version query (v;) ..."
 
@@ -19,4 +17,3 @@ M118 P0 S"v;"
 G4 P500
 
 M118 P2 S"bd_pressure: version query sent. Expected response: bd_pressure-rrf-v2"
-M118 P2 S"Check the serial terminal connected to the sensor USB port to confirm."

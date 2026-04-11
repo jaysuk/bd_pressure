@@ -203,6 +203,30 @@ void pa_rrf_parse_params(pa_rrf_params_t *p, const char *str)
 
         s = colon + 1;  /* advance past this ':' and keep scanning */
     }
+
+    /* --- Range clamps --------------------------------------------------- */
+    /* Speeds: must be positive; cap at 60000 mm/min (1000 mm/s) */
+    if (p->speed_high   < 100)  p->speed_high   = 100;
+    if (p->speed_low    < 100)  p->speed_low    = 100;
+    if (p->speed_travel < 100)  p->speed_travel = 100;
+    if (p->speed_high   > 60000) p->speed_high  = 60000;
+    if (p->speed_low    > 60000) p->speed_low   = 60000;
+    if (p->speed_travel > 60000) p->speed_travel = 60000;
+
+    /* PA step: must be positive; cap at 0.1 (very large step already) */
+    if (p->pa_step <= 0.0f)  p->pa_step = 0.001f;
+    if (p->pa_step >  0.1f)  p->pa_step = 0.1f;
+
+    /* PA start: must be non-negative; cap at 2.0 */
+    if (p->pa_start < 0.0f)  p->pa_start = 0.0f;
+    if (p->pa_start > 2.0f)  p->pa_start = 2.0f;
+
+    /* Steps: 1..64 */
+    if (p->pa_steps < 1)   p->pa_steps = 1;
+    if (p->pa_steps > 64)  p->pa_steps = 64;
+
+    /* Extruder index: 0..7 */
+    if (p->extruder > 7)   p->extruder = 0;
 }
 
 /* -----------------------------------------------------------------------

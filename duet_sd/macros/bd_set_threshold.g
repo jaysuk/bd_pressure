@@ -21,4 +21,4 @@ if param.T < 0 || param.T > 99
 M118 P2 S{"bd_pressure: setting threshold to " ^ param.T ^ " (saved to flash)"}
 M118 P0 S{param.T ^ ";"}
 G4 P300
-M118 P2 S"bd_pressure: threshold set. Run M98 P""/macros/bd_status.g"" to confirm."
+M118 P2 S"bd_pressure: threshold set. Run bd_status.g to confirm."

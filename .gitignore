@@ -19,6 +19,9 @@ firmware_src/MDK-ARM/STM32C011F6U6/*_sct.Bak
 # Keep the hex — it is the release binary users flash
 !firmware_src/MDK-ARM/STM32C011F6U6/*.hex
 
+# Keep .gitkeep files — they hold otherwise-empty tracked directories
+!**/.gitkeep
+
 # Keil build log (regenerated on every build)
 firmware_src/MDK-ARM/build.log
 firmware_src/MDK-ARM/startup_stm32c011xx.lst
