@@ -22,6 +22,14 @@ var pa_step       = 0.002    ; PA increment per iteration
 var steps         = 50       ; number of iterations (range = pa_step × steps)
 var home_first    = true     ; true = G28 before calibration, false = assume already homed
 
+; *** MUST SET BEFORE FIRST USE ***
+; Safe XY position near the centre of your bed, clear of any clips or brackets.
+; Z should be just above the bed (0.3 mm is typical — ensure the nozzle will not drag).
+; The sensor drives all moves from this starting position onwards.
+var start_x       = 118.0    ; *** ADJUST to your bed centre X ***
+var start_y       = 20.0     ; *** ADJUST to a clear Y position on your bed ***
+var start_z       = 0.3      ; mm above bed — increase if you have a textured plate
+
 ; -----------------------------------------------------------------------
 ; Step 0 — Version check
 ;
@@ -62,8 +70,7 @@ M116                                   ; wait for ALL heaters to reach temperatu
 if var.home_first
     G28
 
-G1 X118 Y20 Z0.3 F{var.travel_speed}  ; move to calibration start position
-                                        ; adjust X/Y/Z to suit your bed
+G1 X{var.start_x} Y{var.start_y} Z{var.start_z} F{var.travel_speed}
 
 ; -----------------------------------------------------------------------
 ; Step 4 — Trigger bd_pressure

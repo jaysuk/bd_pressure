@@ -34,10 +34,16 @@ bd_pressure Z    ──► Duet Z-probe input (zprobe.in)
 
 ### Step 3 — Add to `config.g`
 
+See [duet_sd/sys/config_example.g](../duet_sd/sys/config_example.g) for ready-to-use snippets.
+Key lines:
+
 ```gcode
-; Z probe — bd_pressure strain gauge
-M558 P8 C"zprobe.in" H5 F360 T9000
-G31 P500 X0 Y0 Z-0.03
+; USB pass-through (required for PA calibration macros)
+M575 P0 S1 B38400
+
+; Z probe — Duet 3 (use P5 for Duet 2)
+M558 P8 C"zstop" H5 F300:60 T12000
+G31 P500 X0 Y0 Z-0.1   ; adjust Z offset after first probe run
 ```
 
 ### Step 4 — Copy macro files to the Duet SD card
@@ -82,6 +88,7 @@ Copy the `duet_sd/sys/` and `duet_sd/macros/` folders directly to your Duet SD c
 | `duet_sd/macros/bd_set_threshold.g` | `/macros/bd_set_threshold.g` | Set probe trigger threshold |
 | `duet_sd/macros/bd_endstop_mode.g` | `/macros/bd_endstop_mode.g` | Switch to endstop/probe mode |
 | `duet_sd/macros/bd_pa_mode.g` | `/macros/bd_pa_mode.g` | Switch to PA mode (diagnostics) |
+| `duet_sd/macros/bd_reboot.g` | `/macros/bd_reboot.g` | Reboot the sensor (equivalent to power cycle) |
 
 > `/sys/` files are called automatically by RRF (deploy/retract probe) or by the
 > calibration macro.  `/macros/` files are run manually from DWC or via `M98`.
@@ -125,8 +132,9 @@ No plugin is required for probing.
 
 ```gcode
 ; Z probe — bd_pressure strain gauge endstop
-M558 P8 C"zprobe.in" H5 F360 T9000   ; P8 = filtered digital, adjust pin name to your board
-G31 P500 X0 Y0 Z-0.03                 ; adjust Z offset after first probe run
+; Duet 3: P8 (filtered digital).  Duet 2: use P5 instead.
+M558 P8 C"zstop" H5 F300:60 T12000   ; adjust pin name to match your board wiring
+G31 P500 X0 Y0 Z-0.1                 ; adjust Z offset after first probe run
 ```
 
 Add a `deployprobe.g` / `retractprobe.g` pair if you want the sensor re-baselined

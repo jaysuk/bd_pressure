@@ -6,27 +6,31 @@
 ; -----------------------------------------------------------------------
 ; 1. USB serial port — enable Marlin emulation pass-through
 ; -----------------------------------------------------------------------
-; The bd_pressure sensor communicates over the Duet's USB host port (P0).
-; M575 enables serial pass-through so the sensor's responses appear in
-; the DWC console and so that macros can send commands with M118 P0.
+; The bd_pressure sensor communicates at 38400 baud over the Duet USB host
+; port (P0).  M575 S1 enables pass-through so the sensor's responses appear
+; in the DWC console and macros can send commands with M118 P0.
 ;
-M575 P0 S1 B57600   ; USB host port: pass-through at 57600 baud
-                    ; Use B38400 if your sensor is running older firmware
+M575 P0 S1 B38400   ; USB host port: pass-through at 38400 baud (bd_pressure default)
 
 ; -----------------------------------------------------------------------
 ; 2. Z probe — define bd_pressure as a switch-type probe
 ; -----------------------------------------------------------------------
-; bd_pressure acts as a standard switch-type endstop on the Z- pin.
-; Adjust the pin name and offsets to match your toolhead and bed.
+; bd_pressure acts as a standard digital switch endstop on the Z- pin.
+; Use the line that matches your board generation.
+; Adjust the pin name (C parameter) and offsets to match your wiring.
 ;
-M558 P5 C"zstop" H5 F300:60 T12000   ; P5 = switch probe
-                                       ; C = input pin (zstop, Z-, etc.)
+; Duet 3 (6HC, Mini 5+, etc.) — filtered digital input:
+M558 P8 C"zstop" H5 F300:60 T12000   ; P8 = filtered digital (recommended for Duet 3)
+                                       ; C = input pin name — check your board pinout
                                        ; H = dive height (mm)
-                                       ; F = probe speed (first:second pass)
-                                       ; T = travel speed
+                                       ; F = probe speeds mm/min (first:second pass)
+                                       ; T = travel speed mm/min
+
+; Duet 2 (WiFi, Ethernet) — use P5 instead:
+; M558 P5 C"zprobe.in" H5 F300:60 T12000
 
 G31 P500 X0 Y0 Z-0.1   ; probe trigger value and nozzle offsets
-                         ; adjust Z offset after first homing
+                         ; *** adjust Z offset after first probe run ***
 
 ; -----------------------------------------------------------------------
 ; 3. deploy/retract macros
