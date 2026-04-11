@@ -183,6 +183,10 @@ static void rrf_rx_dispatch(void)
     }
 }
 
+/* Forward declarations for flash config helpers defined later in this file */
+static void config_load(void);
+static void config_save(void);
+
  unsigned char process_cmd(void)
  {
 	 int j=0;
@@ -202,7 +206,7 @@ static void rrf_rx_dispatch(void)
 					 * "l:H...:L...:...;" is used (see below), but we keep
 					 * the bare 'l;' path so existing Klipper setups still work.
 					 */
-					USART2_printf("PA mode\n");
+					USART2_printf("PA mode\r\nok\r\n");
 					R_CMD.status_clk= PA_OSR;
 				}
 				else if(rxData[0]=='l' && rxData[1]==':'){
@@ -232,7 +236,7 @@ static void rrf_rx_dispatch(void)
 					}
 				}
 				else if(cmd=='e'){ // in probe mode
-						USART2_printf("endstop mode\n");
+						USART2_printf("endstop mode\r\nok\r\n");
 						R_CMD.status_clk= ENDSTOP_OSR;
 						find_normal_endstop(raw_dat,r_index,1);
 
@@ -271,6 +275,7 @@ static void rrf_rx_dispatch(void)
 							 }
 						}
 					 USART2_printf("THRHOLD_Z: %d\n",R_CMD.THRHOLD_Z);
+				 config_save();   /* persist new threshold to flash */
 				}
 				 memset(rxData,0,sizeof(rxData));
 				 break;
@@ -587,6 +592,52 @@ void Pressure_advance(void)
 
 }
 
+/* -----------------------------------------------------------------------
+ * User config flash storage
+ *
+ * Uses the last 2KB page of flash (0x08007800) to persist user settings
+ * across power cycles.  Only THRHOLD_Z is stored currently.
+ *
+ * Layout (64-bit double-word aligned as required by STM32C0 HAL):
+ *   [0x08007800] uint32_t magic   (0xBD1234BD — "bd_pressure config")
+ *   [0x08007804] uint32_t thrhold (THRHOLD_Z value, 0–99)
+ *
+ * The page is erased and rewritten each time the threshold is updated.
+ * STM32C011 flash endurance: 10,000 erase cycles — more than sufficient.
+ * --------------------------------------------------------------------- */
+#define CFG_FLASH_PAGE_ADDR  0x08007800UL
+#define CFG_FLASH_PAGE_NUM   15            /* last page of 32KB flash (16 × 2KB pages, 0-indexed) */
+#define CFG_MAGIC            0xBD1234BDUL
+
+static void config_load(void)
+{
+    uint32_t magic   = *((volatile uint32_t *)(CFG_FLASH_PAGE_ADDR));
+    uint32_t thrhold = *((volatile uint32_t *)(CFG_FLASH_PAGE_ADDR + 4));
+    if (magic == CFG_MAGIC && thrhold <= 99) {
+        R_CMD.THRHOLD_Z = (unsigned char)thrhold;
+    }
+    /* else: use firmware default (set by caller before config_load()) */
+}
+
+static void config_save(void)
+{
+    FLASH_EraseInitTypeDef erase;
+    uint32_t page_error = 0;
+
+    HAL_FLASH_Unlock();
+
+    erase.TypeErase = FLASH_TYPEERASE_PAGES;
+    erase.Page      = CFG_FLASH_PAGE_NUM;
+    erase.NbPages   = 1;
+    HAL_FLASHEx_Erase(&erase, &page_error);
+
+    /* Write magic word (first 64-bit double-word: magic + thrhold) */
+    uint64_t data = ((uint64_t)(uint32_t)R_CMD.THRHOLD_Z << 32) | CFG_MAGIC;
+    HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, CFG_FLASH_PAGE_ADDR, data);
+
+    HAL_FLASH_Lock();
+}
+
 void Flash_OB_Handle(void) {
 	FLASH_OBProgramInitTypeDef optionsbytesstruct;
 	bool UPDATE = false;
@@ -659,7 +710,8 @@ int main(void)
 
 	ram_i2c = &R_CMD.version[0];
 	sprintf(R_CMD.version,"pandapi3dv1\n");
-	R_CMD.THRHOLD_Z=4;
+	R_CMD.THRHOLD_Z=4;          /* default — may be overridden by config_load() */
+	config_load();              /* restore threshold saved in flash (if any) */
 	R_CMD.status_clk=ENDSTOP_OSR;
 
 
@@ -749,7 +801,7 @@ int main(void)
 						status_clk_old=R_CMD.status_clk;
 						if(R_CMD.status_clk==PA_OSR){
 							ADS1220_Init(4,0x34);
-							USART2_printf("PA mode\n");
+							USART2_printf("PA mode\r\nok\r\n");
 						}
 						else{
 							ADS1220_Init(4,0xB4); //// 40Hz=0X14 90Hz=0x34 1.2K=0XB4 2K=0XD4

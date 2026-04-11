@@ -54,7 +54,9 @@ G31 P500 X0 Y0 Z-0.03                 ; adjust Z offset after first probe run
 ```
 
 Add a `deployprobe.g` / `retractprobe.g` pair if you want the sensor re-baselined
-before each probe tap:
+before each probe tap.  Ready-to-use files are provided at
+[macros/deployprobe.g](../macros/deployprobe.g) and
+[macros/retractprobe.g](../macros/retractprobe.g) — copy both to `/sys/`.
 
 **`sys/deployprobe.g`**
 ```gcode
@@ -66,7 +68,7 @@ G4 P300                 ; dwell to let the ADC capture the new baseline
 
 **`sys/retractprobe.g`**
 ```gcode
-; nothing required
+; nothing required — bd_pressure needs no physical retract
 ```
 
 ---
@@ -278,6 +280,18 @@ M118 P0 S"2;"    ; more sensitive (triggers with less force)
 
 Valid range is `0`–`99`. If the probe false-triggers during travel moves, increase the threshold. If it fails to trigger on contact, decrease it.
 
+**The threshold is automatically saved to flash** — it persists across power cycles so you only need to set it once.
+
+### Mode confirmation responses
+
+When switching modes the sensor echoes a confirmation back to the host:
+
+| Command | Response |
+|---|---|
+| `e;` | `endstop mode` |
+| `l;` | `PA mode` |
+| `v;` | `bd_pressure-rrf-v2` |
+
 ### Baseline (normal_z)
 
 The sensor compares the live reading against a stored baseline. By default it finds this automatically on startup.
@@ -316,6 +330,8 @@ If a calibration run needs to be stopped mid-run (e.g. a crash, or wrong paramet
 ```gcode
 M118 P0 S"a;"    ; abort PA calibration and return to endstop/probe mode
 ```
+
+A ready-to-use macro is provided at [macros/bd_abort.g](../macros/bd_abort.g) — copy it to `/macros/` and assign it to a DWC button for one-click abort.
 
 The sensor will stop sending GCode to RRF, switch back to endstop mode, and issue `M112` to stop any in-progress move. The sensor also auto-aborts if no `ok` response is received from RRF for 30 seconds (USB disconnect watchdog).
 
