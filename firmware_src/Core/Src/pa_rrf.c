@@ -17,17 +17,21 @@
  *
  * Trigger command format (sent by RRF macro over USB)
  * ---------------------------------------------------
- *   l:H<high_mm_min>:L<low_mm_min>:T<travel_mm_min>:S<pa_step>:N<steps>:TEMP<celsius>:E<extruder>;\n
+ *   l:H<high_mm_min>:L<low_mm_min>:T<travel_mm_min>:S<pa_step>:N<steps>:E<extruder>;\n
  *
  *   All fields are optional; omitted fields use the defaults defined in
  *   pa_rrf_params_default().  Example:
- *     l:H10800:L3000:T24000:S0.002:N50:TEMP210:E0;\n
+ *     l:H10800:L3000:T24000:S0.002:N50:E0;\n
  *
- * RRF macro required (add to your RRF config)
- * -------------------------------------------
- *   ; macro: sys/pa_calibrate.g
- *   M118 P0 S"l:H10800:L3000:T24000:S0.002:N50:TEMP210:E0;"
- *   ; bd_pressure now drives everything — macro returns immediately.
+ *   NOTE: there is no TEMP/nozzle temperature parameter. Heating must be
+ *   performed by the RRF macro (M104 + M116) BEFORE sending the trigger.
+ *   Once M118 hands the USB channel to the sensor, RRF cannot send heater
+ *   commands until calibration completes.
+ *
+ * RRF macro
+ * ---------
+ *   See macros/pa_calibrate.g — copy to /sys/pa_calibrate.g on the Duet SD.
+ *   ; bd_pressure drives everything once triggered.
  *   ; RRF will receive M572 Dx Sy from the sensor when done.
  */
 
@@ -158,7 +162,6 @@ void pa_rrf_params_default(pa_rrf_params_t *p)
  *   T  = speed_travel (integer mm/min)
  *   S  = pa_step      (float)
  *   N  = pa_steps     (integer)
- *   TEMP = nozzle_temp (float)
  *   E  = extruder     (integer)
  * --------------------------------------------------------------------- */
 void pa_rrf_parse_params(pa_rrf_params_t *p, const char *str)

@@ -238,7 +238,7 @@ static void config_save(void);
 				else if(cmd=='e'){ // in probe mode
 						USART2_printf("endstop mode\r\nok\r\n");
 						R_CMD.status_clk= ENDSTOP_OSR;
-						find_normal_endstop(raw_dat,r_index,1);
+						find_normal_endstop((unsigned int *)raw_dat,r_index,1);
 
 				}
 				else if(cmd=='d'){ // out data
@@ -512,7 +512,7 @@ int process_triggered(void)
 		
 		{			 
 			 tim14_n=0;
-			 find_normal_endstop(raw_dat,r_index,0);
+			 find_normal_endstop((unsigned int *)raw_dat,r_index,0);
 		}
 	// raw_dat[r_index++] normal_z)>=THRHOLD_Z 
    // for i in range(length-1,length-1-20,-1):
@@ -566,6 +566,7 @@ int process_triggered(void)
 	//	else if((s_avt-normal_z)<=-R_CMD.THRHOLD_Z/2){
 	//		find_normal_endstop(raw_dat,r_index);
 	//	}
+	return 0;
 }
 
 
@@ -580,13 +581,13 @@ void Pressure_advance(void)
 				r_index = 2*SAMPLES;
 				return;
 		 }
-		 find_normal(raw_dat,r_index);
-		 edge =has_plus(raw_dat,r_index-1*SAMPLES-5);
+		 find_normal((unsigned int *)raw_dat,r_index);
+		 edge =has_plus((unsigned int *)raw_dat,r_index-1*SAMPLES-5);
 		 if (edge > 2*SAMPLES){                        
 			 // USART2_printf("edge:%d\n",edge) ; 
 				if (edge > 0){
 					//#  print(raw_dat)
-						int ret = get_low_value(raw_dat,edge);
+						int ret = get_low_value((unsigned int *)raw_dat,edge);
 						if(ret>0){
 							pa_result[pa_list] = ret;
 						//	USART2_printf("Result:%d\n",pa_result[pa_list]) ; 
@@ -723,7 +724,7 @@ int main(void)
 	memset(&R_CMD.version[0],0,sizeof(R_CMD));
 
 	ram_i2c = &R_CMD.version[0];
-	sprintf(R_CMD.version,"pandapi3dv1\n");
+	sprintf((char *)R_CMD.version,"pandapi3dv1\n");
 	R_CMD.THRHOLD_Z=4;          /* default — may be overridden by config_load() */
 	config_load();              /* restore threshold saved in flash (if any) */
 	R_CMD.status_clk=ENDSTOP_OSR;
@@ -807,7 +808,7 @@ int main(void)
 			if(R_CMD.set_normal==1||normal_z==0)
 			{
 			   R_CMD.set_normal=2;
-				 find_normal_endstop(raw_dat,r_index,1);
+				 find_normal_endstop((unsigned int *)raw_dat,r_index,1);
 				 set_open(0);
 			}
 			if(status_clk_old!=R_CMD.status_clk)

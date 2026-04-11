@@ -23,7 +23,8 @@ Video : https://youtu.be/xD0XgPfmwlg
 | **Automatic PA calibration** | No calibration prints. Extruder-only routine measures pressure response directly. |
 | **Nozzle probe** | Strain-gauge contact detection for Z homing, Z tilt, bed mesh or work with eddy bed scan sensor. |
 | **EMI immunity** | Sensor mounted zero-distance to PCB — minimal analog trace length eliminates noise pickup. |
-| **USB & I2C** | Flexible host connectivity; works with Klipper and compatible setups. |
+| **Klipper support** | Full automated PA calibration via Klipper plugin. |
+| **RepRapFirmware support** | Standalone Duet support (no SBC required) — sensor drives RRF directly over USB. |
 | **Broad compatibility** | Mounting footprint compatible with E3D and Voron toolhead ecosystems. |
 
 ---
@@ -60,10 +61,20 @@ bd_pressure operates as a standard switch-type endstop sensor:
 ---
  
 ## Installation & Documentation
- 
+
+### Klipper
+
 Full installation guide, wiring diagrams, and Klipper configuration reference:
- 
+
 **[pandapi3d.cn/en/bdpressure/home](https://pandapi3d.cn/en/bdpressure/home)**
+
+### RepRapFirmware (Duet)
+
+For standalone Duet boards (no SBC required), see the RRF integration guide in this repository:
+
+**[docs/reprapfirmware.md](docs/reprapfirmware.md)**
+
+Includes wiring, `config.g` snippet, PA calibration macro, all sensor commands, first-time setup checklist, and troubleshooting.
 
 
 <img src="https://cdn.hackaday.io/images/6554431774086421961.jpg" width=600>
