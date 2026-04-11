@@ -25,9 +25,8 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <stdio.h> 
-#include <string.h>    // memset, memcpy, strlen, strcpy ?
-#include <stdlib.h>    // malloc, free, atoi, rand ?
+#include <string.h>    /* memset, memcpy, strlen, strcpy */
+#include <stdlib.h>    /* abs */
 
 
 #include "stm32c0xx_hal.h"
@@ -260,7 +259,11 @@ static void config_save(void);
 						NVIC_SystemReset();
 				}
 				else if(cmd=='s'){ // status query
-						USART2_printf("mode:%s;thr:%d;inv:%d;ver:v2\r\nok\r\n", (R_CMD.status_clk==PA_OSR)?"pa":"endstop", R_CMD.THRHOLD_Z, R_CMD.invert_data);
+						/* Avoid %s in USART2_printf to keep _printf_s.o out of the link */
+						if (R_CMD.status_clk == PA_OSR)
+							USART2_printf("mode:pa;thr:%d;inv:%d;ver:v2\r\nok\r\n", R_CMD.THRHOLD_Z, R_CMD.invert_data);
+						else
+							USART2_printf("mode:endstop;thr:%d;inv:%d;ver:v2\r\nok\r\n", R_CMD.THRHOLD_Z, R_CMD.invert_data);
 				}
 				else if(cmd=='i'){ // invert the raw data
 						R_CMD.invert_data=0;
@@ -293,21 +296,98 @@ static void config_save(void);
 	 return cmd;
  }
 
-void USART2_printf(char *fmt,...)
+/* -----------------------------------------------------------------------
+ * Minimal printf-style formatter — supports %d, %u, %f/%.Nf only.
+ * Does NOT use vsprintf/printf from the ARM C library, which would pull
+ * in _printf_s.o / libspace.o and overflow the 32 KB MDK-Lite limit.
+ * ----------------------------------------------------------------------- */
+static void _u32_to_dec(char *buf, uint32_t v, uint8_t *len_out)
 {
-  uint32_t i,length;
-  va_list ap;
-  va_start(ap,fmt);
-  vsprintf(usart_txBuff,fmt,ap);
-  va_end(ap);
-  length=strlen((const char*)usart_txBuff);
-  while((USART2->ISR&0x40)==0);
-  for(i=0;i<length;i++)
-  {
-   // USART2->TDR=usart_txBuff[i];
-   // while((USART2->ISR&0x40)==0);
-		iouart1_SendByte(usart_txBuff[i]);
-  }
+    char tmp[12]; uint8_t i = 0, j = 0;
+    if (v == 0) { buf[0] = '0'; buf[1] = '\0'; *len_out = 1; return; }
+    while (v) { tmp[i++] = (char)('0' + v % 10); v /= 10; }
+    *len_out = i;
+    while (i) buf[j++] = tmp[--i];
+    buf[j] = '\0';
+}
+
+static void _fmt_emit(char c)
+{
+    iouart1_SendByte((uint8_t)c);
+}
+
+static void _fmt_emit_str(const char *s)
+{
+    while (*s) _fmt_emit(*s++);
+}
+
+void USART2_printf(char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+
+    while (*fmt)
+    {
+        if (*fmt != '%') { _fmt_emit(*fmt++); continue; }
+        fmt++; /* skip '%' */
+
+        /* optional precision: .N */
+        uint8_t prec = 6;
+        if (*fmt == '.') {
+            fmt++; prec = 0;
+            while (*fmt >= '0' && *fmt <= '9') { prec = (uint8_t)(prec * 10 + (*fmt - '0')); fmt++; }
+        }
+
+        switch (*fmt++)
+        {
+        case 'd': {
+            int32_t v = va_arg(ap, int32_t);
+            char buf[12]; uint8_t l;
+            if (v < 0) { _fmt_emit('-'); _u32_to_dec(buf, (uint32_t)(-v), &l); }
+            else        {               _u32_to_dec(buf, (uint32_t)v,    &l); }
+            _fmt_emit_str(buf);
+            break;
+        }
+        case 'u': {
+            char buf[12]; uint8_t l;
+            _u32_to_dec(buf, va_arg(ap, uint32_t), &l);
+            _fmt_emit_str(buf);
+            break;
+        }
+        case 'f': {
+            /* float args are promoted to double in va_arg */
+            float fv = (float)va_arg(ap, double);
+            if (fv < 0.0f) { _fmt_emit('-'); fv = -fv; }
+            uint32_t ipart = (uint32_t)fv;
+            /* scale fractional part by 10^prec */
+            float frac = fv - (float)ipart;
+            uint8_t p = prec; uint32_t scale = 1;
+            while (p--) scale *= 10;
+            uint32_t frac_i = (uint32_t)(frac * (float)scale + 0.5f);
+            /* carry if rounded up */
+            if (frac_i >= scale) { ipart++; frac_i = 0; }
+            char buf[12]; uint8_t l;
+            _u32_to_dec(buf, ipart, &l); _fmt_emit_str(buf);
+            if (prec) {
+                _fmt_emit('.');
+                /* zero-pad fractional part */
+                uint32_t tmp_scale = scale / 10;
+                while (tmp_scale > frac_i && tmp_scale > 1) { _fmt_emit('0'); tmp_scale /= 10; }
+                _u32_to_dec(buf, frac_i, &l); _fmt_emit_str(buf);
+            }
+            break;
+        }
+        case 'c':
+            _fmt_emit((char)va_arg(ap, int));
+            break;
+        case '%':
+            _fmt_emit('%');
+            break;
+        default:
+            break;
+        }
+    }
+    va_end(ap);
 }
 /*
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)	// 2ms
@@ -724,7 +804,7 @@ int main(void)
 	memset(&R_CMD.version[0],0,sizeof(R_CMD));
 
 	ram_i2c = &R_CMD.version[0];
-	sprintf((char *)R_CMD.version,"pandapi3dv1\n");
+	strcpy((char *)R_CMD.version,"pandapi3dv1\n");
 	R_CMD.THRHOLD_Z=4;          /* default — may be overridden by config_load() */
 	config_load();              /* restore threshold saved in flash (if any) */
 	R_CMD.status_clk=ENDSTOP_OSR;

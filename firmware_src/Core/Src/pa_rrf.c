@@ -49,8 +49,7 @@ extern unsigned char PolarFlag;
 int GetAD(unsigned char channel, unsigned char continue_mode);
 
 #include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <stdlib.h>   /* atoi, atof */
 
 /* -----------------------------------------------------------------------
  * External symbols from main.c / pa.lib
@@ -93,6 +92,55 @@ typedef struct {
     unsigned char invert_data;
 } _Receive_D_shadow;
 extern _Receive_D_shadow R_CMD;
+
+/* -----------------------------------------------------------------------
+ * Lightweight float/integer formatters — avoids pulling _printf_fp.o /
+ * fpconst.o from the ARM C library (which would overflow the 32 KB limit).
+ * --------------------------------------------------------------------- */
+
+/* Write unsigned decimal into buf; return pointer past last char. */
+static char *_u32_str(char *p, uint32_t v)
+{
+    char tmp[11]; int n = 0;
+    if (v == 0) { *p++ = '0'; return p; }
+    while (v) { tmp[n++] = (char)('0' + v % 10); v /= 10; }
+    while (n--) *p++ = tmp[n+1-1+1-1]; /* reverse */
+    return p;
+}
+/* Simpler: write reversed then flip */
+static char *_u32_s(char *p, uint32_t v)
+{
+    if (v == 0) { *p++ = '0'; return p; }
+    char *start = p;
+    while (v) { *p++ = (char)('0' + v % 10); v /= 10; }
+    /* reverse in-place */
+    char *end = p - 1, *s = start;
+    while (s < end) { char t = *s; *s++ = *end; *end-- = t; }
+    return p;
+}
+
+/* Write float with `prec` decimal places into buf; return pointer past last char. */
+static char *_f_s(char *p, float v, uint8_t prec)
+{
+    if (v < 0.0f) { *p++ = '-'; v = -v; }
+    uint32_t ipart = (uint32_t)v;
+    float    frac  = v - (float)ipart;
+    /* scale fractional part */
+    uint32_t scale = 1; uint8_t i = prec;
+    while (i--) scale *= 10;
+    uint32_t fi = (uint32_t)(frac * (float)scale + 0.5f);
+    if (fi >= scale) { ipart++; fi = 0; }
+    p = _u32_s(p, ipart);
+    if (prec) {
+        *p++ = '.';
+        /* zero-pad fractional digits */
+        uint32_t ts = scale / 10;
+        while (ts > fi && ts > 1) { *p++ = '0'; ts /= 10; }
+        if (fi > 0) p = _u32_s(p, fi);
+        else        *p++ = '0';
+    }
+    return p;
+}
 
 /* -----------------------------------------------------------------------
  * Extrusion ratio (mm filament per mm XY travel) — derived from the
@@ -353,7 +401,8 @@ static bool _wait_ok_with_adc(const char *label, uint32_t timeout_ms)
         }
 
         if ((tim14_n - start) >= timeout_ms) {
-            USART2_printf("PA_RRF: timeout: %s\n", label);
+            (void)label;
+            USART2_printf("PA_RRF: timeout\n");
             return false;
         }
 
@@ -494,8 +543,7 @@ void pa_rrf_run(void)
         if (!_cmd("M83"))            { s_state = PA_RRF_ABORTED; return; }
 
         /* Set initial PA to a known value */
-        snprintf(buf, sizeof(buf), "M572 D%u S%.4f",
-                 (unsigned)s_params.extruder, (double)s_params.pa_start);
+        { char *p = buf; memcpy(p,"M572 D",6); p+=6; p=_u32_s(p,(uint32_t)s_params.extruder); memcpy(p," S",2); p+=2; p=_f_s(p,s_params.pa_start,4); *p='\0'; }
         if (!_cmd(buf))              { s_state = PA_RRF_ABORTED; return; }
 
         /* Prime: push 4 mm at low speed to seat filament */
@@ -516,11 +564,7 @@ void pa_rrf_run(void)
         float e_prime   = (s_params.x_end - s_params.x_start) * E_PER_MM;
 
         /* Fast move to start position while extruding prime bead */
-        snprintf(buf, sizeof(buf), "G1 X%.2f Y%.2f F%lu E%.5f",
-                 (double)s_params.x_start,
-                 (double)s_params.y_base,
-                 (unsigned long)s_params.speed_high,
-                 (double)e_prime);
+        { char *p = buf; memcpy(p,"G1 X",4); p+=4; p=_f_s(p,s_params.x_start,2); memcpy(p," Y",2); p+=2; p=_f_s(p,s_params.y_base,2); memcpy(p," F",2); p+=2; p=_u32_s(p,(uint32_t)s_params.speed_high); memcpy(p," E",2); p+=2; p=_f_s(p,e_prime,5); *p='\0'; }
         if (!_cmd(buf))              { s_state = PA_RRF_ABORTED; return; }
 
         /* Drain move buffer, then dwell to let sensor stabilise */
@@ -549,39 +593,23 @@ void pa_rrf_run(void)
         float y_pos  = s_params.y_base   + s_step * s_params.y_step;
 
         /* Set PA for this step */
-        snprintf(buf, sizeof(buf), "M572 D%u S%.4f",
-                 (unsigned)s_params.extruder, (double)pa_val);
+        { char *p = buf; memcpy(p,"M572 D",6); p+=6; p=_u32_s(p,(uint32_t)s_params.extruder); memcpy(p," S",2); p+=2; p=_f_s(p,pa_val,4); *p='\0'; }
         if (!_cmd(buf))              { s_state = PA_RRF_ABORTED; return; }
 
         /* Travel to line start */
-        snprintf(buf, sizeof(buf), "G1 X%.2f Y%.2f F%lu",
-                 (double)s_params.x_start,
-                 (double)y_pos,
-                 (unsigned long)s_params.speed_travel);
+        { char *p = buf; memcpy(p,"G1 X",4); p+=4; p=_f_s(p,s_params.x_start,2); memcpy(p," Y",2); p+=2; p=_f_s(p,y_pos,2); memcpy(p," F",2); p+=2; p=_u32_s(p,(uint32_t)s_params.speed_travel); *p='\0'; }
         if (!_cmd(buf))              { s_state = PA_RRF_ABORTED; return; }
 
         /* Low-speed segment: x_start → x_mid_l */
-        snprintf(buf, sizeof(buf), "G1 X%.2f Y%.2f F%lu E%.5f",
-                 (double)s_params.x_mid_l,
-                 (double)y_pos,
-                 (unsigned long)s_params.speed_low,
-                 (double)e_low);
+        { char *p = buf; memcpy(p,"G1 X",4); p+=4; p=_f_s(p,s_params.x_mid_l,2); memcpy(p," Y",2); p+=2; p=_f_s(p,y_pos,2); memcpy(p," F",2); p+=2; p=_u32_s(p,(uint32_t)s_params.speed_low); memcpy(p," E",2); p+=2; p=_f_s(p,e_low,5); *p='\0'; }
         if (!_cmd(buf))              { s_state = PA_RRF_ABORTED; return; }
 
         /* High-speed segment: x_mid_l → x_mid_r */
-        snprintf(buf, sizeof(buf), "G1 X%.2f Y%.2f F%lu E%.5f",
-                 (double)s_params.x_mid_r,
-                 (double)y_pos,
-                 (unsigned long)s_params.speed_high,
-                 (double)e_high);
+        { char *p = buf; memcpy(p,"G1 X",4); p+=4; p=_f_s(p,s_params.x_mid_r,2); memcpy(p," Y",2); p+=2; p=_f_s(p,y_pos,2); memcpy(p," F",2); p+=2; p=_u32_s(p,(uint32_t)s_params.speed_high); memcpy(p," E",2); p+=2; p=_f_s(p,e_high,5); *p='\0'; }
         if (!_cmd(buf))              { s_state = PA_RRF_ABORTED; return; }
 
         /* Low-speed segment: x_mid_r → x_end */
-        snprintf(buf, sizeof(buf), "G1 X%.2f Y%.2f F%lu E%.5f",
-                 (double)s_params.x_end,
-                 (double)y_pos,
-                 (unsigned long)s_params.speed_low,
-                 (double)e_low2);
+        { char *p = buf; memcpy(p,"G1 X",4); p+=4; p=_f_s(p,s_params.x_end,2); memcpy(p," Y",2); p+=2; p=_f_s(p,y_pos,2); memcpy(p," F",2); p+=2; p=_u32_s(p,(uint32_t)s_params.speed_low); memcpy(p," E",2); p+=2; p=_f_s(p,e_low2,5); *p='\0'; }
         if (!_cmd(buf))              { s_state = PA_RRF_ABORTED; return; }
 
         /* Drain move buffer — after this the sensor data is valid */
@@ -628,8 +656,7 @@ void pa_rrf_run(void)
         if (_pick_best_pa(&best_pa))
         {
             /* Apply the best PA value */
-            snprintf(buf, sizeof(buf), "M572 D%u S%.4f",
-                     (unsigned)s_params.extruder, (double)best_pa);
+            { char *p = buf; memcpy(p,"M572 D",6); p+=6; p=_u32_s(p,(uint32_t)s_params.extruder); memcpy(p," S",2); p+=2; p=_f_s(p,best_pa,4); *p='\0'; }
             _cmd(buf);   /* best-effort — don't abort if this fails */
 
             s_result.best_pa      = best_pa;
@@ -658,10 +685,12 @@ void pa_rrf_run(void)
              * 1. Log to the DWC/Duet console (P2 = HTTP message channel,
              *    visible in DWC and on PanelDue).
              */
-            snprintf(buf, sizeof(buf),
-                     "M118 P2 S\"bd_pressure: PA calibration done. "
-                     "Best value: M572 D%u S%.4f  Add this to your config.g\"",
-                     (unsigned)s_params.extruder, (double)best_pa);
+            { char *p = buf;
+              const char *pre = "M118 P2 S\"bd_pressure: PA calibration done. Best value: M572 D";
+              size_t l = strlen(pre); memcpy(p, pre, l); p += l;
+              p = _u32_s(p, (uint32_t)s_params.extruder);
+              memcpy(p, " S", 2); p += 2; p = _f_s(p, best_pa, 4);
+              memcpy(p, "  Add this to your config.g\"", 28); p += 28; *p = '\0'; }
             _cmd(buf);
 
             /*
@@ -669,15 +698,13 @@ void pa_rrf_run(void)
              *    M291 P"<message>" R"<title>" S2 — S2 = OK button, no timeout.
              *    The user must press OK to dismiss it.
              */
-            snprintf(buf, sizeof(buf),
-                     "M291 P\"Calibration complete!\\n"
-                     "Best Pressure Advance: %.4f\\n\\n"
-                     "Add to config.g:\\n"
-                     "M572 D%u S%.4f\" "
-                     "R\"bd_pressure PA Result\" S2",
-                     (double)best_pa,
-                     (unsigned)s_params.extruder,
-                     (double)best_pa);
+            { char *p = buf;
+              memcpy(p, "M291 P\"Calibration complete!\\nBest Pressure Advance: ", 52); p += 52;
+              p = _f_s(p, best_pa, 4);
+              memcpy(p, "\\n\\nAdd to config.g:\\nM572 D", 26); p += 26;
+              p = _u32_s(p, (uint32_t)s_params.extruder);
+              memcpy(p, " S", 2); p += 2; p = _f_s(p, best_pa, 4);
+              memcpy(p, "\" R\"bd_pressure PA Result\" S2", 29); p += 29; *p = '\0'; }
             _cmd(buf);
 
             /*
@@ -692,9 +719,7 @@ void pa_rrf_run(void)
              *      M29         — close file
              */
             _cmd("M28 /sys/pa_result.g");
-            snprintf(buf, sizeof(buf),
-                     "M572 D%u S%.4f ; bd_pressure PA calibration result",
-                     (unsigned)s_params.extruder, (double)best_pa);
+            { char *p = buf; memcpy(p,"M572 D",6); p+=6; p=_u32_s(p,(uint32_t)s_params.extruder); memcpy(p," S",2); p+=2; p=_f_s(p,best_pa,4); memcpy(p," ; bd_pressure PA calibration result",36); p+=36; *p='\0'; }
             _cmd(buf);
             _cmd("M29");
         }

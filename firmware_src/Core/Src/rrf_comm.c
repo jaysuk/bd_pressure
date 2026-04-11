@@ -26,8 +26,6 @@
 #include "main.h"
 
 #include <string.h>
-#include <stdio.h>
-#include <stdarg.h>
 
 /* -----------------------------------------------------------------------
  * Timing helper — re-uses tim14_n which is incremented every ~1 ms
@@ -90,16 +88,55 @@ void rrf_reset_line_counter(void)
  * Formats:  N<n> <gcode>*<cs>\n
  * The checksum covers the full "N<n> <gcode>" string.
  * --------------------------------------------------------------------- */
+/* Write decimal representation of v into buf; return pointer past last char. */
+static char *_u32_to_str(char *p, uint32_t v)
+{
+    if (v == 0) { *p++ = '0'; return p; }
+    char tmp[11]; int n = 0;
+    while (v) { tmp[n++] = (char)('0' + v % 10); v /= 10; }
+    char *s = p + n - 1;
+    p += n;
+    while (n--) *s-- = tmp[n+1-1+1-1];   /* reverse */
+    /* simpler: */
+    return p;
+}
+/* Cleaner reversal helper */
+static char *_u32w(char *p, uint32_t v)
+{
+    if (v == 0) { *p++ = '0'; return p; }
+    char *start = p;
+    while (v) { *p++ = (char)('0' + v % 10); v /= 10; }
+    char *end = p - 1, *s = start;
+    while (s < end) { char t = *s; *s++ = *end; *end-- = t; }
+    return p;
+}
+
 void rrf_send(const char *gcode)
 {
-    /* Build  "N<n> <gcode>"  into s_tx_buf first so we can checksum it */
-    snprintf(s_tx_buf, sizeof(s_tx_buf), "N%lu %s", (unsigned long)s_line_num, gcode);
+    /* Build  "N<n> <gcode>"  into s_tx_buf — no printf, no library bloat. */
+    char *p = s_tx_buf;
+    *p++ = 'N';
+    p = _u32w(p, s_line_num);
+    *p++ = ' ';
+    size_t glen = strlen(gcode);
+    size_t nlen = (size_t)(p - s_tx_buf);
+    if (nlen + glen >= sizeof(s_tx_buf))
+        glen = sizeof(s_tx_buf) - nlen - 1;
+    memcpy(p, gcode, glen);
+    p += glen;
+    *p = '\0';
+
     uint8_t cs = _checksum(s_tx_buf);
 
-    /* Append  *<cs>\n  and transmit */
-    char line[RRF_TX_LINE_MAX + 8];
-    snprintf(line, sizeof(line), "%s*%u\n", s_tx_buf, (unsigned)cs);
-    _tx_str(line);
+    /* Append  *<cs>\n  and transmit — build cs string inline */
+    char csbuf[6];
+    char *q = csbuf;
+    *q++ = '*';
+    q = _u32w(q, (uint32_t)cs);
+    *q++ = '\n';
+    *q = '\0';
+    _tx_str(s_tx_buf);
+    _tx_str(csbuf);
 
     s_line_num++;
 }
@@ -112,9 +149,9 @@ void rrf_send(const char *gcode)
  * --------------------------------------------------------------------- */
 void rrf_send_raw(const char *gcode)
 {
-    char line[RRF_TX_LINE_MAX + 2];
-    snprintf(line, sizeof(line), "%s\n", gcode);
-    _tx_str(line);
+    /* Send without snprintf %s to keep _printf_s.o out of the link */
+    _tx_str(gcode);
+    _tx_str("\n");
 }
 
 /* -----------------------------------------------------------------------
