@@ -18,5 +18,5 @@ M118 P0 S"v;"
 ; Wait for response
 G4 P500
 
-M118 P2 S"bd_pressure: version query sent. Expected response: bd_pressure-rrf-v1"
+M118 P2 S"bd_pressure: version query sent. Expected response: bd_pressure-rrf-v2"
 M118 P2 S"Check the serial terminal connected to the sensor USB port to confirm."

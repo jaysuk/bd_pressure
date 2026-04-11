@@ -244,7 +244,11 @@ static void rrf_rx_dispatch(void)
 						R_CMD.out_data_mode=0;
 				}
 				else if(cmd=='v'){ // report firmware version
-						USART2_printf("bd_pressure-rrf-v1\n");
+						USART2_printf("bd_pressure-rrf-v2\n");
+				}
+				else if(cmd=='a'){ // abort PA calibration
+						pa_rrf_abort();
+						USART2_printf("PA_RRF: abort requested\n");
 				}
 				else if(cmd=='i'){ // invert the raw data
 						R_CMD.invert_data=0;

@@ -124,6 +124,10 @@ static uint8_t         s_data_count = 0;
 static uint8_t         s_step       = 0;   /* current iteration index       */
 static uint8_t         s_pa_list_snapshot = 0; /* pa_list at step entry      */
 
+/* USB disconnect watchdog — time of last successful ok receipt */
+#define WATCHDOG_MS  30000u
+static uint32_t s_last_ok_time = 0;
+
 /* -----------------------------------------------------------------------
  * Defaults
  * --------------------------------------------------------------------- */
@@ -249,6 +253,7 @@ void pa_rrf_start(const pa_rrf_params_t *p)
     memset(pa_result, 0, 128);
 
     rrf_comm_init();
+    s_last_ok_time = tim14_n;   /* initialise watchdog baseline */
 
     s_state = PA_RRF_HANDSHAKE;
     USART2_printf("PA_RRF: starting\n");
@@ -308,11 +313,24 @@ static bool _wait_ok_with_adc(const char *label, uint32_t timeout_ms)
 
         if (rrf_ok_pending()) {
             rrf_ok_consume();
+            s_last_ok_time = tim14_n;   /* reset watchdog */
             return true;
         }
 
         if ((tim14_n - start) >= timeout_ms) {
             USART2_printf("PA_RRF: timeout: %s\n", label);
+            return false;
+        }
+
+        /* USB disconnect watchdog: if no ok has arrived for WATCHDOG_MS ms
+         * since the last successful ok (or since start) abort the run.
+         * This fires only after the per-command timeout would already have
+         * triggered, so it acts as a belt-and-braces backstop. */
+        if ((tim14_n - s_last_ok_time) >= WATCHDOG_MS) {
+            USART2_printf("PA_RRF: watchdog — no ok for %u ms, aborting\n",
+                          (unsigned)WATCHDOG_MS);
+            s_state = PA_RRF_ABORTED;
+            R_CMD.status_clk = ENDSTOP_OSR;
             return false;
         }
     }

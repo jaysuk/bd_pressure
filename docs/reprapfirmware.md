@@ -58,10 +58,10 @@ before each probe tap:
 
 **`sys/deployprobe.g`**
 ```gcode
-M400                    ; wait for moves
-G4 P200                 ; short dwell
-M118 P0 S"N;"           ; re-baseline the probe normal_z on the sensor
-G4 P200
+M400                    ; wait for all moves to complete
+G4 P500                 ; dwell to let toolhead vibration settle
+M118 P0 S"N;"           ; re-baseline the probe (lock current reading as normal_z)
+G4 P300                 ; dwell to let the ADC capture the new baseline
 ```
 
 **`sys/retractprobe.g`**
@@ -73,104 +73,39 @@ G4 P200
 
 ### 2. PA calibration macro (`sys/pa_calibrate.g`)
 
-Copy this macro to your Duet's `sys/` folder.
-Adjust the parameters to match your printer (see [Parameter reference](#parameter-reference) below).
+The macro is provided ready to use at [macros/pa_calibrate.g](../macros/pa_calibrate.g).
+Copy it to `/sys/` on your Duet SD card and edit the parameters at the top.
 
-**Heating is handled entirely by the macro, before the sensor is triggered.**
-This is intentional — once `M118` sends the trigger, the USB channel is handed to
-bd_pressure and RRF can no longer send commands on it.  Heating must be complete
-before that handover happens.
+Key features:
+- **Version check** — queries the sensor firmware version at startup and warns if it may not be RRF-capable
+- **Multi-tool support** — set `var.tool` and `var.extruder` for any tool/extruder combination
+- **Bed heating** — set `var.bed_temp > 0` to heat the bed before calibrating
+- **Optional homing** — set `var.home_first = false` if the printer is already homed
+- **Abort support** — send `M118 P0 S"a;"` from the DWC console to stop a run mid-calibration
 
 ```gcode
-; pa_calibrate.g — bd_pressure automatic Pressure Advance calibration
-;
-; Usage (standalone, cold start):
-;   M98 P"pa_calibrate.g"
-;
-; Usage (from slicer start GCode, nozzle already heating):
-;   M98 P"pa_calibrate.g"
-;   ; place this after your M109/M116 in the slicer start sequence
-;
-; The macro heats the nozzle, homes the printer, positions the toolhead,
-; then hands control to bd_pressure via M118.  The sensor drives all the
-; extrusion moves and sends M572 Dx Sy back to RRF when done.
-; The macro then waits for the sensor to finish before continuing.
-
-; -----------------------------------------------------------------------
-; Parameters — edit these to match your printer and filament
-; -----------------------------------------------------------------------
-var nozzle_temp  = 210      ; °C  nozzle print temperature for this filament
-var high_speed   = 10800    ; mm/min  fast extrusion segment (match outer wall speed)
-var low_speed    = 3000     ; mm/min  slow extrusion segments
-var travel_speed = 24000    ; mm/min  travel between lines
-var pa_step      = 0.002    ; PA increment per iteration
-var steps        = 50       ; number of iterations  (range = pa_step × steps = 0–0.100)
-var extruder     = 0        ; extruder index (D parameter for M572)
-
-; -----------------------------------------------------------------------
-; Step 1 — Heat the nozzle
-;
-; M116 waits for ALL heaters that have been set to reach temperature.
-; If the nozzle is already at temperature from a previous M109/M116 in
-; your start GCode this completes immediately.
-; If starting cold, M104 begins heating and M116 blocks until ready.
-; -----------------------------------------------------------------------
-M104 T0 S{var.nozzle_temp}     ; start heating (non-blocking)
-; Heat the bed here too if needed, e.g.:
-; M140 S65
-M116                            ; wait for ALL heaters — nozzle + bed if set
-
-; -----------------------------------------------------------------------
-; Step 2 — Home and position
-;
-; The sensor needs the toolhead positioned somewhere safe over the bed
-; with enough Y travel for (steps × y_step) mm of lines.
-; Default: lines run from Y=38.75 to Y=38.75 + 50×3.5 = Y=213.75
-; Adjust the G1 move to suit your bed size.
-; -----------------------------------------------------------------------
-G28                             ; home all axes
-G1 X118 Y20 Z0.3 F{var.travel_speed}   ; move to calibration start position
-                                        ; Z=0.3 mm above bed — adjust to first layer height
-
-; -----------------------------------------------------------------------
-; Step 3 — Trigger bd_pressure
-;
-; M118 P0 sends the string on USB channel 0 (the bd_pressure connection).
-; The sensor receives it, parses the parameters, and takes over the USB link.
-; This line returns immediately in RRF — the sensor is now in control.
-; -----------------------------------------------------------------------
-M118 P0 S{"l:H" ^ var.high_speed ^ ":L" ^ var.low_speed ^ ":T" ^ var.travel_speed ^ ":S" ^ var.pa_step ^ ":N" ^ var.steps ^ ":E" ^ var.extruder ^ ";"}
-
-; -----------------------------------------------------------------------
-; Step 4 — Wait for calibration to finish
-;
-; bd_pressure will send M572 back to RRF when done, then send G28 X Y.
-; We add a generous G4 dwell here so RRF doesn't immediately continue
-; with the next line of the slicer start GCode before calibration ends.
-;
-; Approximate calibration time:
-;   steps × (line_time + travel_time) ≈ 50 × 4s ≈ 3–8 minutes
-; Adjust the dwell to be safely longer than your expected run time.
-; -----------------------------------------------------------------------
-G4 S480                         ; wait 8 minutes (480 seconds) — adjust if needed
-
-; -----------------------------------------------------------------------
-; Step 5 — Clean up
-; -----------------------------------------------------------------------
-M400                            ; ensure all moves from the sensor are complete
-G28 X Y                         ; home X and Y (sensor also does this, belt-and-braces)
+; Key parameters — edit to match your printer
+var tool          = 0        ; tool number (T0, T1, etc.)
+var extruder      = 0        ; extruder index for M572
+var nozzle_temp   = 210      ; °C
+var bed_temp      = 0        ; °C — set to 0 to skip bed heating
+var high_speed    = 10800    ; mm/min fast segment
+var low_speed     = 3000     ; mm/min slow segments
+var travel_speed  = 24000    ; mm/min travel
+var pa_step       = 0.002    ; PA increment per step
+var steps         = 50       ; number of steps
+var home_first    = true     ; G28 before calibration
 ```
 
 > **Why `G4` and not a smarter wait?**
 > Once bd_pressure owns the USB channel, RRF cannot receive a "done" signal from
 > the macro's perspective — the sensor sends `M572` and `G28` as GCode which RRF
 > executes, but there's no way for the macro to detect that.  A fixed dwell is the
-> simplest reliable solution.  Size it larger than your longest expected calibration
-> run.  If you always use 50 steps at moderate speed, 8 minutes is conservative.
+> simplest reliable solution.  The default is 10 minutes — reduce `G4 S600` if your
+> runs are consistently faster.
 
-> **What `M118 P0` does:** Sends the trigger string on USB channel 0 — the same
-> physical channel bd_pressure is connected to.  The sensor receives it as a plain
-> serial command, exactly as if you had typed it into a terminal.
+> **To abort mid-run:** send `M118 P0 S"a;"` from the DWC console.  The sensor will
+> stop, issue `M112`, and return to endstop/probe mode.
 
 ---
 
@@ -362,6 +297,27 @@ M118 P0 S"I;"    ; inverted polarity
 ```
 
 Use `I;` if the probe triggers in the wrong direction (e.g. triggers when the nozzle lifts instead of when it touches).
+
+### Raw data output
+
+The sensor can stream raw ADC readings over USB, which is useful for diagnosing probe sensitivity without needing a separate serial terminal.
+
+```gcode
+M118 P0 S"d;"    ; enable raw data output
+M118 P0 S"D;"    ; disable raw data output (default)
+```
+
+When enabled, the sensor continuously sends `W:<value>;D:<value>;Y:<value>;R:<value>` lines. Disable it before running PA calibration or probing.
+
+### Aborting PA calibration
+
+If a calibration run needs to be stopped mid-run (e.g. a crash, or wrong parameters):
+
+```gcode
+M118 P0 S"a;"    ; abort PA calibration and return to endstop/probe mode
+```
+
+The sensor will stop sending GCode to RRF, switch back to endstop mode, and issue `M112` to stop any in-progress move. The sensor also auto-aborts if no `ok` response is received from RRF for 30 seconds (USB disconnect watchdog).
 
 ---
 
