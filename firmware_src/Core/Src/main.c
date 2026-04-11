@@ -35,6 +35,8 @@
 #include "iousart.h"
 #include "pa.h"
 #include "ADS1220.h"
+#include "rrf_comm.h"
+#include "pa_rrf.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -128,6 +130,59 @@ void find_normal_endstop(unsigned int *r_data,int length,char force);
 void USART2_printf(char *fmt,...);
 void set_open(int log);
 
+/*
+ * rrf_rx_dispatch — called every main loop with any newly-arrived bytes.
+ *
+ * Bytes that look like RRF responses ("ok\n", "Error:...\n") are fed to
+ * rrf_feed_byte() so the PA state machine can unblock.
+ * All other bytes fall through to the existing bd_pressure command path.
+ *
+ * We maintain a small lookahead line buffer here so we can classify each
+ * complete line before deciding where it goes.
+ */
+#define RRF_DISPATCH_BUF 128
+static char     s_dispatch_buf[RRF_DISPATCH_BUF];
+static uint8_t  s_dispatch_len = 0;
+
+static void rrf_rx_dispatch(void)
+{
+    int j;
+    for (j = 0; j < (int)sizeof(rxData); j++)
+    {
+        uint8_t b = rxData[j];
+        if (b == 0)
+            continue;
+
+        /* Accumulate into line buffer */
+        if (b == '\n' || b == '\r')
+        {
+            if (s_dispatch_len > 0)
+            {
+                s_dispatch_buf[s_dispatch_len] = '\0';
+
+                /* Route: RRF response lines start with "ok" or "Error" */
+                if (strncmp(s_dispatch_buf, "ok", 2) == 0 ||
+                    strncmp(s_dispatch_buf, "Error", 5) == 0)
+                {
+                    /* Feed each character into the RRF parser */
+                    for (uint8_t k = 0; k < s_dispatch_len; k++)
+                        rrf_feed_byte((uint8_t)s_dispatch_buf[k]);
+                    rrf_feed_byte('\n');
+                }
+                /* else: bd_pressure command — leave in rxData[] for
+                   process_cmd() which reads rxData[] directly */
+
+                s_dispatch_len = 0;
+            }
+        }
+        else
+        {
+            if (s_dispatch_len < (RRF_DISPATCH_BUF - 1))
+                s_dispatch_buf[s_dispatch_len++] = (char)b;
+        }
+    }
+}
+
  unsigned char process_cmd(void)
  {
 	 int j=0;
@@ -137,22 +192,50 @@ void set_open(int log);
    for(j=1;j<sizeof(rxData);j++)
 	 {
 	    if(rxData[j]==';')
-			{	 
+			{
 			  cmd = rxData[j-1];
-			  if(cmd=='l'){ // in pressure advance mode
-						USART2_printf("PA mode\n");
-						R_CMD.status_clk= PA_OSR;
-						
-					//	adcStartup((uint16_t) R_CMD.status_clk << 2);
-					//	r_index=0;
+
+			  if(cmd=='l'){
+					/*
+					 * 'l' with no parameters: legacy Klipper-mode PA enable.
+					 * When triggered from RRF the full parameterised form
+					 * "l:H...:L...:...;" is used (see below), but we keep
+					 * the bare 'l;' path so existing Klipper setups still work.
+					 */
+					USART2_printf("PA mode\n");
+					R_CMD.status_clk= PA_OSR;
+				}
+				else if(rxData[0]=='l' && rxData[1]==':'){
+					/*
+					 * Parameterised RRF trigger:
+					 *   l:H<high>:L<low>:T<travel>:S<pa_step>:N<steps>:TEMP<temp>:E<extruder>;\n
+					 *
+					 * Example sent by RRF macro:
+					 *   M118 P0 S"l:H10800:L3000:T24000:S0.002:N50:TEMP210:E0;"
+					 *
+					 * We parse the parameters and launch the RRF state machine.
+					 */
+					if(pa_rrf_get_state() == PA_RRF_IDLE   ||
+					   pa_rrf_get_state() == PA_RRF_DONE    ||
+					   pa_rrf_get_state() == PA_RRF_ABORTED)
+					{
+						pa_rrf_params_t params;
+						pa_rrf_params_default(&params);
+						/* Pass the full rxData string; parser scans for ':' tokens */
+						pa_rrf_parse_params(&params, (const char *)rxData);
+						pa_rrf_start(&params);
+						USART2_printf("PA_RRF: triggered via RRF\n");
+					}
+					else
+					{
+						USART2_printf("PA_RRF: already running, ignoring\n");
+					}
 				}
 				else if(cmd=='e'){ // in probe mode
 						USART2_printf("endstop mode\n");
 						R_CMD.status_clk= ENDSTOP_OSR;
-						//ADS1220_Init(4,0xD4);
-				//		adcStartup((uint16_t) R_CMD.status_clk << 2);
 						find_normal_endstop(raw_dat,r_index,1);
-						 
+
 				}
 				else if(cmd=='d'){ // out data
 						R_CMD.out_data_mode=1;
@@ -160,20 +243,23 @@ void set_open(int log);
 				else if(cmd=='D'){ // disable data out
 						R_CMD.out_data_mode=0;
 				}
-				else if(cmd=='i'){ // inverat the raw data 
+				else if(cmd=='v'){ // report firmware version
+						USART2_printf("bd_pressure-rrf-v1\n");
+				}
+				else if(cmd=='i'){ // invert the raw data
 						R_CMD.invert_data=0;
 				}
-				else if(cmd=='I'){ //  
+				else if(cmd=='I'){ //
 						R_CMD.invert_data=1;
 				}
-				else if(cmd=='N'){ // use the current data 
+				else if(cmd=='N'){ // use the current data
 						R_CMD.set_normal=1;
-					  set_open(0);	
+					  set_open(0);
 				}
 				else if(cmd=='n'){ // auto find normal_z by default
 						R_CMD.set_normal=0;
 				}
-				else if((cmd>='0')&&(cmd<='9')){ // disable data out
+				else if((cmd>='0')&&(cmd<='9')){ // set threshold
 					 R_CMD.THRHOLD_Z=cmd-'0';
 					 if(j>=2){
 					     if(rxData[j-2]>'0'&&rxData[j-2]<='9'){
@@ -588,15 +674,52 @@ int main(void)
 	//40Hz=0X14 90Hz=0x34 2K=0XD4
 	ADS1220_Init(4,0xD4);
 	R_CMD.invert_data=1;
+	rrf_comm_init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		
-		// USART2_printf("hello\n");
-		// continue;
+		/* ------------------------------------------------------------------
+		 * Route any newly-received UART bytes to either the RRF response
+		 * parser or the bd_pressure command parser, depending on content.
+		 * Must run every iteration before process_cmd() so that RRF "ok"
+		 * bytes are classified before process_cmd() clears rxData[].
+		 * ---------------------------------------------------------------- */
+		rrf_rx_dispatch();
+
+		/* ------------------------------------------------------------------
+		 * If the RRF PA state machine is active it drives the ADC itself
+		 * internally (_sample_adc inside _cmd/_dwell_ms).  We skip the
+		 * normal ADC read + mode processing while it runs to avoid double-
+		 * sampling.  When it finishes (DONE/ABORTED) normal operation
+		 * resumes on the next iteration.
+		 * ---------------------------------------------------------------- */
+		if(pa_rrf_get_state() != PA_RRF_IDLE &&
+		   pa_rrf_get_state() != PA_RRF_DONE &&
+		   pa_rrf_get_state() != PA_RRF_ABORTED)
+		{
+			pa_rrf_run();
+			/* Still handle incoming commands (e.g. abort) while running */
+			process_cmd();
+			/* Still handle mode-switch side-effects */
+			if(status_clk_old!=R_CMD.status_clk)
+			{
+				status_clk_old=R_CMD.status_clk;
+				if(R_CMD.status_clk==PA_OSR){
+					ADS1220_Init(4,0x34);
+				}
+				else{
+					ADS1220_Init(4,0xB4);
+				}
+			}
+			continue;
+		}
+
+		/* ------------------------------------------------------------------
+		 * Normal operation (endstop or legacy Klipper PA mode)
+		 * ---------------------------------------------------------------- */
 		  tempA = GetAD(4,1);//get ADC data from channel 0
 		  if(PolarFlag==R_CMD.invert_data)
 			 tempA=-tempA;
@@ -610,19 +733,13 @@ int main(void)
 				Pressure_advance();
 			else
 				process_triggered();
-		  //process_triggered();
 		  process_cmd();
 			if(R_CMD.set_normal==1||normal_z==0)
 			{
 			   R_CMD.set_normal=2;
 				 find_normal_endstop(raw_dat,r_index,1);
-				 set_open(0);	
-				// normal_z = raw_dat[r_index-1];
+				 set_open(0);
 			}
-			//if(normal_z==0)
-			//{
-			//   find_normal_endstop(raw_dat,r_index);
-			//}
 			if(status_clk_old!=R_CMD.status_clk)
 			{
 						status_clk_old=R_CMD.status_clk;

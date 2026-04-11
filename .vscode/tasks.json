@@ -1,0 +1,130 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Firmware",
+            "type": "shell",
+            "command": "\"${env:LOCALAPPDATA}\\Keil_v5\\UV4\\UV4.exe\"",
+            "args": [
+                "-b",
+                "${workspaceFolder}\\firmware_src\\MDK-ARM\\STM32C011F6U6.uvprojx",
+                "-j0",
+                "-o",
+                "${workspaceFolder}\\firmware_src\\MDK-ARM\\build.log"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": {
+                "owner": "armclang",
+                "fileLocation": ["relative", "${workspaceFolder}/firmware_src/MDK-ARM"],
+                "pattern": {
+                    "regexp": "^(.*)\\((\\d+)\\):\\s+(warning|error):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "severity": 3,
+                    "message": 4
+                }
+            }
+        },
+        {
+            "label": "Clean Firmware",
+            "type": "shell",
+            "command": "\"${env:LOCALAPPDATA}\\Keil_v5\\UV4\\UV4.exe\"",
+            "args": [
+                "-c",
+                "${workspaceFolder}\\firmware_src\\MDK-ARM\\STM32C011F6U6.uvprojx",
+                "-j0"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Rebuild Firmware",
+            "type": "shell",
+            "command": "Start-Process",
+            "args": [
+                "-FilePath", "\"${env:LOCALAPPDATA}\\Keil_v5\\UV4\\UV4.exe\"",
+                "-ArgumentList", "'-c','${workspaceFolder}\\firmware_src\\MDK-ARM\\STM32C011F6U6.uvprojx','-j0'",
+                "-Wait", "-NoNewWindow", "-PassThru", ";",
+                "Start-Sleep", "-Seconds", "2", ";",
+                "Start-Process",
+                "-FilePath", "\"${env:LOCALAPPDATA}\\Keil_v5\\UV4\\UV4.exe\"",
+                "-ArgumentList", "'-b','${workspaceFolder}\\firmware_src\\MDK-ARM\\STM32C011F6U6.uvprojx','-j0','-o','${workspaceFolder}\\firmware_src\\MDK-ARM\\build.log'",
+                "-Wait", "-NoNewWindow"
+            ],
+            "options": {
+                "shell": {
+                    "executable": "powershell.exe",
+                    "args": ["-NoProfile", "-Command"]
+                }
+            },
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": {
+                "owner": "armclang",
+                "fileLocation": ["relative", "${workspaceFolder}/firmware_src/MDK-ARM"],
+                "pattern": {
+                    "regexp": "^(.*)\\((\\d+)\\):\\s+(warning|error):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "severity": 3,
+                    "message": 4
+                }
+            }
+        },
+        {
+            "label": "Flash Firmware",
+            "type": "shell",
+            "command": "\"C:\\Program Files\\STMicroelectronics\\STM32Cube\\STM32CubeProgrammer\\bin\\STM32_Programmer_CLI.exe\"",
+            "args": [
+                "-c", "port=COM1",
+                "-w", "${workspaceFolder}\\firmware_src\\MDK-ARM\\STM32C011F6U6\\STM32C011F6U6.hex",
+                "-v",
+                "--start"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Build and Flash",
+            "dependsOn": ["Build Firmware", "Flash Firmware"],
+            "dependsOrder": "sequence",
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "View Build Log",
+            "type": "shell",
+            "command": "cat",
+            "args": ["${workspaceFolder}/firmware_src/MDK-ARM/build.log"],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": []
+        }
+    ]
+}

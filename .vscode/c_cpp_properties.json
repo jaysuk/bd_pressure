@@ -1,0 +1,34 @@
+{
+    "configurations": [
+        {
+            "name": "STM32C011 (ARMCLANG)",
+            "includePath": [
+                "${workspaceFolder}/firmware_src/Core/Inc",
+                "${workspaceFolder}/firmware_src/Drivers/STM32C0xx_HAL_Driver/Inc",
+                "${workspaceFolder}/firmware_src/Drivers/STM32C0xx_HAL_Driver/Inc/Legacy",
+                "${workspaceFolder}/firmware_src/Drivers/CMSIS/Device/ST/STM32C0xx/Include",
+                "${workspaceFolder}/firmware_src/Drivers/CMSIS/Include",
+                "${env:LOCALAPPDATA}/Keil_v5/ARM/ARMCLANG/include"
+            ],
+            "defines": [
+                "USE_HAL_DRIVER",
+                "STM32C011xx"
+            ],
+            "compilerPath": "${env:LOCALAPPDATA}/Keil_v5/ARM/ARMCLANG/bin/armclang.exe",
+            "compilerArgs": [
+                "--target=arm-arm-none-eabi",
+                "-mcpu=cortex-m0plus"
+            ],
+            "cStandard": "c11",
+            "intelliSenseMode": "clang-arm",
+            "browse": {
+                "path": [
+                    "${workspaceFolder}/firmware_src/Core",
+                    "${workspaceFolder}/firmware_src/Drivers"
+                ],
+                "limitSymbolsToIncludedHeaders": true
+            }
+        }
+    ],
+    "version": 4
+}
