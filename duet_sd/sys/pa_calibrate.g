@@ -88,13 +88,13 @@ M118 P0 S{"l:H" ^ var.high_speed ^ ":L" ^ var.low_speed ^ ":T" ^ var.travel_spee
 ; bd_pressure sends M572 and G28 X Y to RRF when done, then reports the
 ; result via M118 P2 (DWC console) and M291 (DWC popup).
 ;
-; The G4 dwell must be longer than the expected calibration time:
-;   steps × ~4–6 s per line ≈ 50 × 5 s = ~4 min typical
-; Default 10 minutes is conservative — reduce if your runs are faster.
+; The dwell is calculated as steps × 10 s — a conservative upper bound
+; (~5 s/line typical, 10 s/line gives headroom for slow moves or heat soak).
+; With the default 50 steps this is 500 s (~8 min).
 ;
 ; To abort mid-run: send  M118 P0 S"a;"  from the DWC console.
 ; -----------------------------------------------------------------------
-G4 S600                         ; wait up to 10 minutes
+G4 S{var.steps * 10}            ; wait steps × 10 s (adjust multiplier if needed)
 
 ; -----------------------------------------------------------------------
 ; Step 6 — Clean up

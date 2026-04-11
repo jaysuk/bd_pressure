@@ -187,8 +187,9 @@ var home_first    = true     ; G28 before calibration
 > Once bd_pressure owns the USB channel, RRF cannot receive a "done" signal from
 > the macro's perspective — the sensor sends `M572` and `G28` as GCode which RRF
 > executes, but there's no way for the macro to detect that.  A fixed dwell is the
-> simplest reliable solution.  The default is 10 minutes — reduce `G4 S600` if your
-> runs are consistently faster.
+> simplest reliable solution.  The dwell is calculated as `steps × 10 s` — with
+> the default 50 steps this is ~8 minutes.  Reduce the multiplier in `G4 S{var.steps * 10}`
+> if your runs are consistently faster, or increase it for very slow moves.
 
 > **To abort mid-run:** send `M118 P0 S"a;"` from the DWC console.  The sensor will
 > stop, issue `M112`, and return to endstop/probe mode.
@@ -303,7 +304,7 @@ It shows the result in a format ready to copy:
 └─────────────────────────────────┘
 ```
 
-The macro's `G4 S480` dwell keeps RRF busy, so the popup will appear and persist
+The macro's `G4 S600` dwell keeps RRF busy, so the popup will appear and persist
 until the user dismisses it.
 
 ### 3. SD card file `/sys/pa_result.g`
@@ -318,6 +319,54 @@ M572 D0 S0.0420 ; bd_pressure PA calibration result
 Each calibration run **overwrites** the previous result.  To use it, either:
 - Copy the `M572` line directly into `config.g`
 - Or add `M98 P"/sys/pa_result.g"` to `config.g` to load it automatically on boot
+
+---
+
+## What to do with the result
+
+### Applying it permanently
+
+The simplest approach is to open `config.g` and add or update the `M572` line:
+
+```gcode
+M572 D0 S0.0420   ; Pressure Advance — set by bd_pressure
+```
+
+Place it after your extruder configuration, before any print-start macros.
+
+### Auto-loading on boot
+
+If you prefer the result to be applied automatically without editing `config.g` each time,
+add this line to `config.g`:
+
+```gcode
+M98 P"/sys/pa_result.g"   ; load PA calibration result from last bd_pressure run
+```
+
+Each new calibration overwrites `/sys/pa_result.g`, so this always loads the most
+recent result.
+
+### When to re-calibrate
+
+PA is affected by:
+- **Filament change** — different material or brand, even at the same temperature
+- **Temperature change** — a ±10 °C shift can move the optimal PA value noticeably
+- **Speed change** — if you significantly increase or decrease print speed, re-run with
+  matching `H`/`L` parameters
+
+A quick re-run takes 3–5 minutes. There is no harm in running it before every print
+if consistency matters.
+
+### If the result looks wrong
+
+If the applied PA value causes over- or under-extrusion on corners:
+
+1. Check that `H` (high speed) in the trigger command matches your actual outer wall speed.
+   PA is speed-dependent — calibrating at the wrong speed gives a wrong result.
+2. Re-run with a narrower step range focused around the suspect value:
+   `l:H<speed>:L<speed>:S0.001:N40:E0;` gives 0.001 resolution over a 0–0.04 range.
+3. Check that the nozzle was fully at temperature before the run started — a cold nozzle
+   will produce inconsistent pressure readings.
 
 ---
 
@@ -445,8 +494,9 @@ The sensor will stop sending GCode to RRF, switch back to endstop mode, and issu
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
+| Macros run but sensor never responds; no output in DWC console | `M575 P0 S1 B38400` missing from `config.g` | Add `M575 P0 S1 B38400` to `config.g` and reboot the Duet — without this, `M118 P0` commands are not forwarded to the USB port |
 | No `ok` responses, calibration times out | M555 P2 not taking effect | Make sure nothing else is connected to the Duet USB port |
 | Calibration starts but all PA results are 0 | ADC not receiving data during moves | Check that `SAMPLES=30` in `pa.h` is satisfied at 90Hz — each move must take >330ms |
 | Wrong PA value applied | Speed parameters don't match print speeds | Re-run with `H`/`L` matching your actual print speeds |
 | Probe not triggering | Threshold too high | Send a lower threshold value, e.g. `M118 P0 S"2;"` — see [Z probe sensitivity](#z-probe-sensitivity) |
-| Calibration won't start — "already running" | Previous run didn't complete cleanly | Power-cycle the sensor |
+| Calibration won't start — "already running" | Previous run didn't complete cleanly | Power-cycle the sensor or run `M98 P"/macros/bd_reboot.g"` |

@@ -19,6 +19,11 @@
 - Flash wear guard: skips erase/write if value unchanged
 - `e;` and `l;` mode switches now echo a confirmation response to the host
 
+**Input validation**
+- `pa_rrf_parse_params()` now clamps all parameters to safe ranges after parsing:
+  speeds clamped to 100–60000 mm/min; `pa_step` to 0.001–0.1; `pa_steps` to 1–64;
+  extruder index to 0–7 — malformed trigger commands can no longer cause a hang
+
 **Build**
 - Compiler: ARM Compiler 6.24 (ARMCLANG), Keil MDK Lite 5.43
 - Code size: 30,716 bytes (target: STM32C011F6U6, 32KB flash)
