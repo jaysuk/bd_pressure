@@ -424,6 +424,16 @@
               <FileType>4</FileType>
               <FilePath>..\Core\Src\pa.lib</FilePath>
             </File>
+            <File>
+              <FileName>rrf_comm.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\rrf_comm.c</FilePath>
+            </File>
+            <File>
+              <FileName>pa_rrf.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\pa_rrf.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

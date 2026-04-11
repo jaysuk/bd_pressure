@@ -12,6 +12,79 @@ The module connects via USB and uses two independent interfaces:
 
 ---
 
+## First-time setup
+
+### Step 1 — Flash the firmware
+
+Put the STM32 into bootloader mode (hold BOOT0 high, press reset) and flash
+`firmware_src/MDK-ARM/STM32C011F6U6/STM32C011F6U6.hex` using STM32CubeProgrammer:
+
+```
+STM32_Programmer_CLI.exe -c port=<COMx> -w STM32C011F6U6.hex -v --start
+```
+
+After flashing, the sensor boots into endstop/probe mode automatically.
+
+### Step 2 — Wire up
+
+```
+bd_pressure USB  ──► Duet USB port
+bd_pressure Z    ──► Duet Z-probe input (zprobe.in)
+```
+
+### Step 3 — Add to `config.g`
+
+```gcode
+; Z probe — bd_pressure strain gauge
+M558 P8 C"zprobe.in" H5 F360 T9000
+G31 P500 X0 Y0 Z-0.03
+```
+
+### Step 4 — Copy macro files to the Duet SD card
+
+See the [Macro file locations](#macro-file-locations) table below.
+
+### Step 5 — Verify the sensor
+
+Run `M98 P"/macros/bd_version.g"` from DWC. The sensor should respond with
+`bd_pressure-rrf-v2` on the USB serial console.
+
+Run `M98 P"/macros/bd_status.g"` to confirm mode, threshold, and polarity.
+
+### Step 6 — Test probing
+
+Run a `G30` from DWC. The toolhead should move down and stop when the nozzle
+contacts the bed. If it doesn't trigger, lower the threshold with
+`M98 P"/macros/bd_set_threshold.g" T3`.
+
+### Step 7 — Run PA calibration
+
+Edit `pa_calibrate.g` to match your printer speeds and nozzle temperature,
+then run `M98 P"/sys/pa_calibrate.g"`.
+
+---
+
+## Macro file locations
+
+All provided macro files and where to place them on the Duet SD card:
+
+| File | SD card location | Purpose |
+|---|---|---|
+| `macros/pa_calibrate.g` | `/sys/pa_calibrate.g` | Automated PA calibration — main workflow |
+| `macros/deployprobe.g` | `/sys/deployprobe.g` | Re-baseline sensor before each probe tap |
+| `macros/retractprobe.g` | `/sys/retractprobe.g` | Empty stub (required by RRF) |
+| `macros/bd_version.g` | `/macros/bd_version.g` | Query firmware version |
+| `macros/bd_status.g` | `/macros/bd_status.g` | Query mode, threshold, polarity |
+| `macros/bd_abort.g` | `/macros/bd_abort.g` | Abort PA calibration mid-run |
+| `macros/bd_set_threshold.g` | `/macros/bd_set_threshold.g` | Set probe trigger threshold |
+| `macros/bd_endstop_mode.g` | `/macros/bd_endstop_mode.g` | Switch to endstop/probe mode |
+| `macros/bd_pa_mode.g` | `/macros/bd_pa_mode.g` | Switch to PA mode (diagnostics) |
+
+> `/sys/` files are called automatically by RRF (deploy/retract probe) or by the
+> calibration macro.  `/macros/` files are run manually from DWC or via `M98`.
+
+---
+
 ## How bd_pressure knows it's talking to RRF vs Klipper
 
 The firmware detects the host purely from the **trigger command format**.
@@ -291,6 +364,26 @@ When switching modes the sensor echoes a confirmation back to the host:
 | `e;` | `endstop mode` |
 | `l;` | `PA mode` |
 | `v;` | `bd_pressure-rrf-v2` |
+| `s;` | `mode:<endstop\|pa>;thr:<n>;inv:<0\|1>;ver:v2` |
+
+### Status query
+
+`s;` returns a single diagnostic line with all current sensor state:
+
+```gcode
+M118 P0 S"s;"
+; Response: mode:endstop;thr:4;inv:0;ver:v2
+```
+
+Use `M98 P"/macros/bd_status.g"` for a friendly DWC wrapper.
+
+### Reboot
+
+```gcode
+M118 P0 S"r;"    ; reboot the sensor (equivalent to power cycle)
+```
+
+Useful for recovering the sensor without physical access.
 
 ### Baseline (normal_z)
 

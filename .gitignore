@@ -1,0 +1,48 @@
+# -----------------------------------------------------------------------
+# bd_pressure — .gitignore
+# -----------------------------------------------------------------------
+
+# Keil MDK build artefacts — compiled objects, dependency files, binaries
+firmware_src/MDK-ARM/STM32C011F6U6/*.o
+firmware_src/MDK-ARM/STM32C011F6U6/*.d
+firmware_src/MDK-ARM/STM32C011F6U6/*.axf
+firmware_src/MDK-ARM/STM32C011F6U6/*.map
+firmware_src/MDK-ARM/STM32C011F6U6/*.htm
+firmware_src/MDK-ARM/STM32C011F6U6/*.lnp
+firmware_src/MDK-ARM/STM32C011F6U6/*.dep
+firmware_src/MDK-ARM/STM32C011F6U6/*.bak
+firmware_src/MDK-ARM/STM32C011F6U6/*_sct.Bak
+
+# Keep the scatter file — it is project configuration, not a build output
+!firmware_src/MDK-ARM/STM32C011F6U6/*.sct
+
+# Keep the hex — it is the release binary users flash
+!firmware_src/MDK-ARM/STM32C011F6U6/*.hex
+
+# Keil build log (regenerated on every build)
+firmware_src/MDK-ARM/build.log
+firmware_src/MDK-ARM/startup_stm32c011xx.lst
+
+# Keil per-user GUI layout files (machine/user specific, not project config)
+firmware_src/MDK-ARM/*.uvguix.*
+
+# Keil uVision options file — contains debug/target settings that are
+# user-specific (last used debugger, window layout, etc.)
+# If your team shares debug config, remove this line.
+firmware_src/MDK-ARM/*.uvoptx
+
+# Git merge conflict backup files left by Keil
+firmware_src/MDK-ARM/STM32C011F6U6/*.mine
+firmware_src/MDK-ARM/STM32C011F6U6/*.r[0-9]*
+firmware_src/MDK-ARM/*.mine
+firmware_src/MDK-ARM/*.r[0-9]*
+
+# VS Code workspace state (not project config)
+.vscode/*.log
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store

@@ -254,6 +254,14 @@ static void config_save(void);
 						pa_rrf_abort();
 						USART2_printf("PA_RRF: abort requested\n");
 				}
+				else if(cmd=='r'){ // reboot sensor
+						USART2_printf("rebooting\n");
+						HAL_Delay(10);
+						NVIC_SystemReset();
+				}
+				else if(cmd=='s'){ // status query
+						USART2_printf("mode:%s;thr:%d;inv:%d;ver:v2\r\nok\r\n", (R_CMD.status_clk==PA_OSR)?"pa":"endstop", R_CMD.THRHOLD_Z, R_CMD.invert_data);
+				}
 				else if(cmd=='i'){ // invert the raw data
 						R_CMD.invert_data=0;
 				}
@@ -621,6 +629,12 @@ static void config_load(void)
 
 static void config_save(void)
 {
+    /* Wear check: skip erase/write if the value already matches what's in flash */
+    uint32_t magic_now   = *((volatile uint32_t *)(CFG_FLASH_PAGE_ADDR));
+    uint32_t thrhold_now = *((volatile uint32_t *)(CFG_FLASH_PAGE_ADDR + 4));
+    if (magic_now == CFG_MAGIC && thrhold_now == (uint32_t)R_CMD.THRHOLD_Z)
+        return;  /* already saved — no erase needed */
+
     FLASH_EraseInitTypeDef erase;
     uint32_t page_error = 0;
 
