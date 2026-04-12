@@ -206,6 +206,7 @@ void pa_rrf_params_default(pa_rrf_params_t *p)
  *   S  = pa_step      (float)
  *   N  = pa_steps     (integer)
  *   E  = extruder     (integer)
+ *   P  = pa_start     (float, starting PA value — default 0.0)
  * --------------------------------------------------------------------- */
 void pa_rrf_parse_params(pa_rrf_params_t *p, const char *str)
 {
@@ -242,6 +243,12 @@ void pa_rrf_parse_params(pa_rrf_params_t *p, const char *str)
         } else if (*key == 'E') {
             val = key + 1;
             p->extruder = (uint8_t)atoi(val);
+        } else if (*key == 'P') {
+            val = key + 1;
+            p->pa_start = (float)atof(val);
+        } else {
+            /* Unknown key — log it so the user can spot typos in the trigger */
+            USART2_printf("PA_RRF: unknown param key '%c', ignored\n", *key);
         }
 
         s = colon + 1;  /* advance past this ':' and keep scanning */

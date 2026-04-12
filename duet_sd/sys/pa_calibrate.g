@@ -78,8 +78,16 @@ G1 X{var.start_x} Y{var.start_y} Z{var.start_z} F{var.travel_speed}
 ; M118 P0 sends the trigger string to the sensor over USB.
 ; The sensor parses the parameters and takes over the USB link.
 ; RRF returns immediately from this line — the sensor is now in control.
+;
+; If the sensor does not respond within the G4 dwell below, it is likely:
+;   a) not connected or powered,
+;   b) running old firmware that doesn't support the RRF trigger format, or
+;   c) M575 P0 S1 B38400 is missing from config.g.
+; In any of these cases the dwell will expire and the macro will continue
+; to Step 6 (clean-up) without a result. Check the DWC console for messages
+; from the sensor — if nothing appears, check wiring and firmware version.
 ; -----------------------------------------------------------------------
-M118 P2 S"bd_pressure: starting PA calibration..."
+M118 P2 S"bd_pressure: starting PA calibration — waiting for sensor response..."
 M118 P0 S{"l:H" ^ var.high_speed ^ ":L" ^ var.low_speed ^ ":T" ^ var.travel_speed ^ ":S" ^ var.pa_step ^ ":N" ^ var.steps ^ ":E" ^ var.extruder ^ ";"}
 
 ; -----------------------------------------------------------------------
@@ -95,6 +103,7 @@ M118 P0 S{"l:H" ^ var.high_speed ^ ":L" ^ var.low_speed ^ ":T" ^ var.travel_spee
 ; To abort mid-run: send  M118 P0 S"a;"  from the DWC console.
 ; -----------------------------------------------------------------------
 G4 S{var.steps * 10}            ; wait steps × 10 s (adjust multiplier if needed)
+M118 P2 S"bd_pressure: dwell complete. If no result popup appeared, check sensor connection and firmware version."
 
 ; -----------------------------------------------------------------------
 ; Step 6 — Clean up

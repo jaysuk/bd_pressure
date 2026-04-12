@@ -23,6 +23,8 @@
 - `pa_rrf_parse_params()` now clamps all parameters to safe ranges after parsing:
   speeds clamped to 100–60000 mm/min; `pa_step` to 0.001–0.1; `pa_steps` to 1–64;
   extruder index to 0–7 — malformed trigger commands can no longer cause a hang
+- Unknown parameter keys in the trigger string are now logged to the console rather than silently ignored
+- New `P` parameter sets the PA sweep start value (default 0.0), e.g. `:P0.03:S0.001:N40;` sweeps 0.030–0.070
 
 **Build**
 - Compiler: ARM Compiler 6.24 (ARMCLANG), Keil MDK Lite 5.43

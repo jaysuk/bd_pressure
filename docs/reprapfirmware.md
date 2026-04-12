@@ -105,7 +105,7 @@ No configuration change or firmware flag is needed.
 | `l;` | Klipper | Switch ADC to PA mode, emit raw data stream — Klipper plugin drives the moves |
 | `l:H...:L...:...;` | RRF | Parse parameters, launch the RRF state machine — bd_pressure drives RRF |
 
-When connected to a Duet the RRF macro sends `M118 P0 S"l:H10800:..."` which contains
+When connected to a Duet the RRF macro sends `M118 P0 S"l:H10800:L3000:..."` which contains
 a colon immediately after `l`.  The existing bare `l;` path is untouched so the same
 firmware works with both hosts without any modification.
 
@@ -205,7 +205,7 @@ and the default value is used.
 ### Full format
 
 ```
-l:H<high>:L<low>:T<travel>:S<pa_step>:N<steps>:E<extruder>;
+l:H<high>:L<low>:T<travel>:S<pa_step>:N<steps>:E<extruder>:P<pa_start>;
 ```
 
 ### Parameters
@@ -218,6 +218,7 @@ l:H<high>:L<low>:T<travel>:S<pa_step>:N<steps>:E<extruder>;
 | `S` | PA step | — | `0.002` | How much PA increases with each iteration. With the default 50 steps this gives a test range of 0 – 0.100. Increase to `0.005` for a wider range (0 – 0.250), decrease to `0.001` for finer resolution. |
 | `N` | Steps | count | `50` | Number of PA values to test. Total PA range tested = `S × N`. |
 | `E` | Extruder index | — | `0` | Which extruder the result is applied to. Becomes the `D` parameter in the `M572` command the sensor sends back. Use `1` for a second extruder, etc. |
+| `P` | PA start | — | `0.0` | Starting PA value for the sweep. Use this to focus a calibration around a known good value, e.g. `:P0.03:S0.001:N40;` sweeps 0.03 – 0.07 at 0.001 resolution. |
 
 > **Nozzle temperature is not a parameter.** Heat the nozzle with `M104`/`M116` in
 > the macro **before** `M118`.  Once the trigger is sent, the USB channel belongs to
@@ -259,7 +260,7 @@ For example, with `MAX_VOL = 20 mm³/s`: L = 1020, H = 10740.
    replies `ok` to every GCode line (required for the sensor's command handshake)
 5. **bd_pressure** sends `M110 N0` to reset the line counter, then begins numbered GCode
 6. **bd_pressure** sends the setup commands: `G90`, `M83`, initial `M572 D0 S0`, `G1 E4` prime
-7. **bd_pressure** executes 50 calibration lines (or fewer if early-exit triggers):
+7. **bd_pressure** executes up to 50 calibration lines (stops when all steps complete or the 64-sample cap is reached):
    - Sets PA: `M572 D0 S<value>`
    - Travels to line start: `G1 X Y F<travel>`
    - Slow segment: `G1 X F<low> E...`
@@ -324,6 +325,8 @@ Each calibration run **overwrites** the previous result.  To use it, either:
 
 ## What to do with the result
 
+The result is delivered three ways when calibration completes — DWC console message, DWC popup dialog, and the file `/sys/pa_result.g` written to the SD card (see [How the result is reported](#how-the-result-is-reported) above). You only need to act on one of them.
+
 ### Applying it permanently
 
 The simplest approach is to open `config.g` and add or update the `M572` line:
@@ -376,9 +379,10 @@ The project uses **Keil MDK** (ARM Compiler 6) targeting the STM32C011F6U6.
 The project file is at [firmware_src/MDK-ARM/STM32C011F6U6.uvprojx](../firmware_src/MDK-ARM/STM32C011F6U6.uvprojx).
 
 **Requirements:**
-- Keil MDK v5.38 or later
+- Keil MDK v5.38 or later (MDK-Lite is sufficient — code fits within the 32 KB free limit)
 - Keil STM32C0xx DFP pack v2.4.0 (`Keil.STM32C0xx_DFP.2.4.0`)
 - ARM Compiler 6.22 (ARMCLANG) — included with MDK
+- **MicroLib must be enabled** — go to *Project → Options for Target → Target* and check **Use MicroLIB**. Without it the standard C library overhead pushes the binary over the 32 KB MDK-Lite limit.
 
 **New source files to add to the project** (not yet in the `.uvprojx`):
 
@@ -486,7 +490,7 @@ M118 P0 S"a;"    ; abort PA calibration and return to endstop/probe mode
 
 A ready-to-use macro is provided at [duet_sd/macros/bd_abort.g](../duet_sd/macros/bd_abort.g) — copy it to `/macros/` and assign it to a DWC button for one-click abort.
 
-The sensor will stop sending GCode to RRF, switch back to endstop mode, and issue `M112` to stop any in-progress move. The sensor also auto-aborts if no `ok` response is received from RRF for 30 seconds (USB disconnect watchdog).
+The sensor will stop sending GCode to RRF, switch back to endstop mode, and issue `M0` to cancel any in-progress move cleanly. The sensor also auto-aborts if no `ok` response is received from RRF for 30 seconds (USB disconnect watchdog).
 
 ---
 
