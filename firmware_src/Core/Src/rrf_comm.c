@@ -221,7 +221,9 @@ rrf_result_t rrf_wait_ok(uint32_t timeout_ms)
             return RRF_OK;
         }
 
-        /* Check timeout — handle 32-bit wrap */
+        /* Check timeout.  Unsigned subtraction wraps correctly on overflow:
+         * if tim14_n has wrapped past start, (tim14_n - start) still gives
+         * the correct elapsed value in two's-complement arithmetic. */
         uint32_t elapsed = tim14_n - start;
         if (elapsed >= timeout_ms)
             return RRF_TIMEOUT;

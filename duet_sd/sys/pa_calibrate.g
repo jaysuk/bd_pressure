@@ -18,8 +18,9 @@ var bed_temp      = 0        ; °C  bed temperature (set to 0 to skip bed heatin
 var high_speed    = 10800    ; mm/min  fast extrusion segment (match outer wall speed)
 var low_speed     = 3000     ; mm/min  slow extrusion segments
 var travel_speed  = 24000    ; mm/min  travel between lines
+var pa_start      = 0.0      ; starting PA value (0.0 = sweep from zero)
 var pa_step       = 0.002    ; PA increment per iteration
-var steps         = 50       ; number of iterations (range = pa_step × steps)
+var steps         = 50       ; number of iterations (range = pa_start + pa_step × steps)
 var home_first    = true     ; true = G28 before calibration, false = assume already homed
 
 ; *** MUST SET BEFORE FIRST USE ***
@@ -88,7 +89,7 @@ G1 X{var.start_x} Y{var.start_y} Z{var.start_z} F{var.travel_speed}
 ; from the sensor — if nothing appears, check wiring and firmware version.
 ; -----------------------------------------------------------------------
 M118 P2 S"bd_pressure: starting PA calibration — waiting for sensor response..."
-M118 P0 S{"l:H" ^ var.high_speed ^ ":L" ^ var.low_speed ^ ":T" ^ var.travel_speed ^ ":S" ^ var.pa_step ^ ":N" ^ var.steps ^ ":E" ^ var.extruder ^ ";"}
+M118 P0 S{"l:H" ^ var.high_speed ^ ":L" ^ var.low_speed ^ ":T" ^ var.travel_speed ^ ":S" ^ var.pa_step ^ ":N" ^ var.steps ^ ":E" ^ var.extruder ^ ":P" ^ var.pa_start ^ ";"}
 
 ; -----------------------------------------------------------------------
 ; Step 5 — Wait for calibration to complete

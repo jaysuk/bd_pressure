@@ -29,5 +29,7 @@ duet_sd/
 3. Open `sys/config_example.g` and copy the relevant snippets into your existing `config.g`.
 4. **Edit `pa_calibrate.g`** — at minimum set `var.start_x`, `var.start_y`, and `var.start_z`
    to a safe position on your bed before running for the first time.
+5. **Optional:** set `var.pa_start` in `pa_calibrate.g` to start the sweep from a known value
+   rather than zero — useful for fine-tuning around a previously calibrated PA value.
 
 For full setup instructions see [docs/reprapfirmware.md](../docs/reprapfirmware.md).

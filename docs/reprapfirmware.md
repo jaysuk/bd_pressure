@@ -57,6 +57,7 @@ Run `M98 P"/macros/bd_version.g"` from DWC. The sensor should respond with
 `bd_pressure-rrf-v2` on the USB serial console.
 
 Run `M98 P"/macros/bd_status.g"` to confirm mode, threshold, and polarity.
+The response appears in the **DWC Console tab** — not as a popup. Open the Console tab before running the macro to see the output.
 
 ### Step 6 — Test probing
 
@@ -178,6 +179,7 @@ var bed_temp      = 0        ; °C — set to 0 to skip bed heating
 var high_speed    = 10800    ; mm/min fast segment
 var low_speed     = 3000     ; mm/min slow segments
 var travel_speed  = 24000    ; mm/min travel
+var pa_start      = 0.0      ; starting PA value (0.0 = sweep from zero)
 var pa_step       = 0.002    ; PA increment per step
 var steps         = 50       ; number of steps
 var home_first    = true     ; G28 before calibration
