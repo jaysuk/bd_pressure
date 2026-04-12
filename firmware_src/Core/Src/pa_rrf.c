@@ -186,6 +186,11 @@ void pa_rrf_params_default(pa_rrf_params_t *p)
     p->speed_travel = 24000;
     p->speed_high   = 10800;
     p->speed_low    = 3000;
+    /* Calibration pattern geometry — not currently exposed as trigger parameters.
+     * x_start/x_end define the line length (80 mm default); x_mid_l/x_mid_r
+     * split it into slow/fast/slow thirds.  y_base is the first line Y position;
+     * y_step is the spacing between lines.  These are sized for a 235×235 bed
+     * centred around X=118.  Adjust here if your bed requires a different layout. */
     p->x_start      = 78.0f;
     p->x_mid_l      = 98.0f;
     p->x_mid_r      = 138.0f;
@@ -440,13 +445,17 @@ static bool _raw_cmd(const char *gcode)
     return _wait_ok_with_adc(gcode, RRF_OK_TIMEOUT_MS);
 }
 
-/* Simple millisecond dwell that keeps sampling the ADC and draining RX */
+/* Simple millisecond dwell that keeps sampling the ADC and draining RX.
+ * Also checks for an abort command arriving during the dwell — if the
+ * state has been set to ABORTED by pa_rrf_abort() the dwell exits early. */
 static void _dwell_ms(uint32_t ms)
 {
     uint32_t start = tim14_n;
     while ((tim14_n - start) < ms) {
         _sample_adc();
         _drain_rx();
+        if (s_state == PA_RRF_ABORTED)
+            return;
     }
 }
 

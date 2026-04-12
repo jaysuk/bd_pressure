@@ -1,6 +1,6 @@
 # bd_pressure Firmware Changelog
 
-## v2 — bd_pressure-rrf-v2.hex
+## v2 — bd_pressure-rrf-v2.hex (2026-04-12)
 
 **RepRapFirmware integration (standalone Duet, no SBC)**
 - Automated PA calibration: sensor drives RRF over USB using Marlin emulation (M555 P2)

@@ -503,6 +503,7 @@ The sensor will stop sending GCode to RRF, switch back to endstop mode, and issu
 | Macros run but sensor never responds; no output in DWC console | `M575 P0 S1 B38400` missing from `config.g` | Add `M575 P0 S1 B38400` to `config.g` and reboot the Duet — without this, `M118 P0` commands are not forwarded to the USB port |
 | No `ok` responses, calibration times out | M555 P2 not taking effect | Make sure nothing else is connected to the Duet USB port |
 | Calibration starts but all PA results are 0 | ADC not receiving data during moves | Check that `SAMPLES=30` in `pa.h` is satisfied at 90Hz — each move must take >330ms |
+| Calibration completes but result is `S0.0000` | No strain gauge signal collected — `pa_list` never incremented | Moves may be too short or too fast for the ADC to capture a full sample window. Lower `H`/`L` speeds or reduce `var.steps` to ensure each line takes at least 500ms |
 | Wrong PA value applied | Speed parameters don't match print speeds | Re-run with `H`/`L` matching your actual print speeds |
 | Probe not triggering | Threshold too high | Send a lower threshold value, e.g. `M118 P0 S"2;"` — see [Z probe sensitivity](#z-probe-sensitivity) |
 | Calibration won't start — "already running" | Previous run didn't complete cleanly | Power-cycle the sensor or run `M98 P"/macros/bd_reboot.g"` |
