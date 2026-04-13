@@ -47,7 +47,7 @@ static uint8_t   s_rx_len    = 0;
 static char      s_tx_buf[RRF_TX_LINE_MAX];
 
 /* -----------------------------------------------------------------------
- * Low-level TX — reuses the existing iouart1_SendByte() bit-bang sender
+ * Low-level TX via iouart1_SendByte() (hardware USART1, PB6/PB7)
  * --------------------------------------------------------------------- */
 static void _tx_str(const char *s)
 {

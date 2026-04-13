@@ -55,9 +55,9 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-extern I2C_HandleTypeDef hi2c1;
 extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim14;
+extern UART_HandleTypeDef huart1;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -143,31 +143,19 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
-  * @brief This function handles EXTI line 4 to 15 interrupts.
+  * @brief This function handles EXTI line 4 to 15 interrupts (PA12 bit-bang RX).
   */
 void EXTI4_15_IRQHandler(void)
 {
-  /* USER CODE BEGIN EXTI4_15_IRQn 0 */
-
-  /* USER CODE END EXTI4_15_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(RX_Pin);
-  /* USER CODE BEGIN EXTI4_15_IRQn 1 */
-
-  /* USER CODE END EXTI4_15_IRQn 1 */
 }
 
 /**
-  * @brief This function handles TIM3 global interrupt.
+  * @brief This function handles TIM3 global interrupt (bit-bang RX sampling).
   */
 void TIM3_IRQHandler(void)
 {
-  /* USER CODE BEGIN TIM3_IRQn 0 */
-
-  /* USER CODE END TIM3_IRQn 0 */
   HAL_TIM_IRQHandler(&htim3);
-  /* USER CODE BEGIN TIM3_IRQn 1 */
-
-  /* USER CODE END TIM3_IRQn 1 */
 }
 
 /**
@@ -175,31 +163,15 @@ void TIM3_IRQHandler(void)
   */
 void TIM14_IRQHandler(void)
 {
-  /* USER CODE BEGIN TIM14_IRQn 0 */
-
-  /* USER CODE END TIM14_IRQn 0 */
   HAL_TIM_IRQHandler(&htim14);
-  /* USER CODE BEGIN TIM14_IRQn 1 */
-
-  /* USER CODE END TIM14_IRQn 1 */
 }
 
 /**
-  * @brief This function handles I2C1 interrupt (combined with EXTI 23).
+  * @brief This function handles USART1 global interrupt (PB6 TX / PB7 RX → printer board).
   */
-void I2C1_IRQHandler(void)
+void USART1_IRQHandler(void)
 {
-  /* USER CODE BEGIN I2C1_IRQn 0 */
-
-  /* USER CODE END I2C1_IRQn 0 */
-  if (hi2c1.Instance->ISR & (I2C_FLAG_BERR | I2C_FLAG_ARLO | I2C_FLAG_OVR)) {
-    HAL_I2C_ER_IRQHandler(&hi2c1);
-  } else {
-    HAL_I2C_EV_IRQHandler(&hi2c1);
-  }
-  /* USER CODE BEGIN I2C1_IRQn 1 */
-
-  /* USER CODE END I2C1_IRQn 1 */
+  HAL_UART_IRQHandler(&huart1);
 }
 
 /* USER CODE BEGIN 1 */

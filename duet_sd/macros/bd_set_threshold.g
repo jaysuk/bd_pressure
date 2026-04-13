@@ -9,6 +9,9 @@
 ; Lower value  = more sensitive (less force to trigger)
 ;
 ; The threshold is saved to flash automatically and persists across reboots.
+;
+; global.bd_port is set in config.g:
+;   global.bd_port = 0   ; 0 = USB (default), 1 = io0 (Pi Zero bridge / direct UART)
 
 if !exists(param.T)
     M118 P2 S"bd_pressure: error — no threshold specified. Usage: M98 P""/macros/bd_set_threshold.g"" T<value>"
@@ -19,6 +22,6 @@ if param.T < 0 || param.T > 99
     M99
 
 M118 P2 S{"bd_pressure: setting threshold to " ^ param.T ^ " (saved to flash)"}
-M118 P0 S{param.T ^ ";"}
+M118 P{global.bd_port} S{param.T ^ ";"}
 G4 P300
 M118 P2 S"bd_pressure: threshold set. Run bd_status.g to confirm."

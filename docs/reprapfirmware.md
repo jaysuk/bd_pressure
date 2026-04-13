@@ -12,6 +12,25 @@ The module connects via USB and uses two independent interfaces:
 
 ---
 
+## Board compatibility
+
+This integration requires the Duet's USB port to act as a **serial pass-through** —
+bytes sent via `M118 P0` go out the USB port to bd_pressure, and bytes received from
+bd_pressure come back in as GCode for RRF to execute.
+
+Most RRF boards (including the Mellow Super8 Pro) have only a USB Device port, which
+cannot accept a USB device like the bd_pressure CH340. If your board does not have a
+dedicated USB host port, you have two options:
+
+- **Pi Zero bridge** — a Raspberry Pi Zero sits between bd_pressure (USB) and your
+  board's UART auxiliary port, forwarding bytes transparently in both directions.
+  See [docs/pi_zero_bridge.md](pi_zero_bridge.md) for full setup instructions.
+- **Direct UART wiring** — if you can access the CH340's TXD/RXD pins on the
+  bd_pressure PCB, wire them directly to your board's io0/io1 UART port.
+  Note the CH340 runs at 5V logic — check whether a level shifter is needed.
+
+---
+
 ## First-time setup
 
 ### Step 1 — Flash the firmware
@@ -38,6 +57,9 @@ See [duet_sd/sys/config_example.g](../duet_sd/sys/config_example.g) for ready-to
 Key lines:
 
 ```gcode
+; Serial port selection — all macros read this global variable
+global.bd_port = 0           ; 0 = USB (default), 1 = io0 (Pi Zero bridge)
+
 ; USB pass-through (required for PA calibration macros)
 M575 P0 S1 B38400
 

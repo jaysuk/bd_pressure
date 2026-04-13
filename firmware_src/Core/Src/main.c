@@ -55,11 +55,10 @@
 
 /* Private variables ---------------------------------------------------------*/
 
-I2C_HandleTypeDef hi2c1;
-
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim14;
+UART_HandleTypeDef huart1;   /* USART1 — PB6 TX / PB7 RX, AF4, 38400 8N1 (WAFER/I2C connector → printer board) */
 
 /* USER CODE BEGIN PV */
 
@@ -70,8 +69,8 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM3_Init(void);
-static void MX_I2C1_Init(void);
 static void MX_TIM14_Init(void);
+static void MX_USART1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -128,6 +127,25 @@ int end_z=0;
 void find_normal_endstop(unsigned int *r_data,int length,char force);
 void USART2_printf(char *fmt,...);
 void set_open(int log);
+
+/* pa.lib references ram_i2c internally — I2C is removed but symbol must exist */
+uint8_t *ram_i2c;
+
+/* Stubs for HAL_UARTEx weak symbols — avoids needing stm32c0xx_hal_uart_ex.c */
+void HAL_UARTEx_WakeupCallback(UART_HandleTypeDef *h)     { (void)h; }
+void HAL_UARTEx_RxFifoFullCallback(UART_HandleTypeDef *h) { (void)h; }
+void HAL_UARTEx_TxFifoEmptyCallback(UART_HandleTypeDef *h){ (void)h; }
+
+/* USART1 RX callback — feeds received bytes into shared rxData[] buffer */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+    if (huart->Instance == USART1) {
+        rxData[re_index++] = tmp_r;
+        if (re_index >= (int)sizeof(rxData))
+            re_index = 0;
+        HAL_UART_Receive_IT(&huart1, &tmp_r, 1);
+    }
+}
 
 /*
  * rrf_rx_dispatch — called every main loop with any newly-arrived bytes.
@@ -313,7 +331,8 @@ static void _u32_to_dec(char *buf, uint32_t v, uint8_t *len_out)
 
 static void _fmt_emit(char c)
 {
-    iouart1_SendByte((uint8_t)c);
+    iouart1_SendByte((uint8_t)c);                        /* bit-bang PA11 (CH340E → USB) */
+    HAL_UART_Transmit(&huart1, (uint8_t *)&c, 1, 10);   /* USART1 PB6 (WAFER/I2C connector → printer) */
 }
 
 static void _fmt_emit_str(const char *s)
@@ -399,75 +418,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)	// 2ms
 	}
 }
 */
-uint8_t *ram_i2c;             // 模拟I2C从机数据寄存器（主机读写的数据都放在这块内存）
-uint8_t offset;                      // 从机寄存器当前偏移地址
-static uint8_t first_byte_state = 1; // 是否收到第1个字节,也就是偏移地址（0：已收到，1：没有收到）
-
-// 
-void HAL_I2C_ListenCpltCallback(I2C_HandleTypeDef *hi2c)
-{
-	if (hi2c->Instance==I2C1){
-		//USART2_printf("HAL_I2C_ListenCpltCallback \n" );
-		first_byte_state = 1;
-		//USART2_printf("i2c offset:%d %d\n",offset-1,ram_i2c[offset-1] );
-		offset = 0;
-		HAL_I2C_EnableListen_IT(hi2c); // slave is ready again
-	}
-}
-
-// I2C设备地址回调函数（地址匹配上以后会进入该函数）
-void HAL_I2C_AddrCallback(I2C_HandleTypeDef *hi2c, uint8_t TransferDirection, uint16_t AddrMatchCode)
-{
-	if (hi2c->Instance==I2C1){
-		
-		if(TransferDirection == I2C_DIRECTION_TRANSMIT) 
-		{// 主机发送，从机接收
-			if(first_byte_state) 
-			{// 准备接收第1个字节数据
-				HAL_I2C_Slave_Seq_Receive_IT(hi2c, &offset, 1, I2C_NEXT_FRAME);  // 每次第1个数据均为偏移地址
-			//	if(offset==21)// address of measure data
-			//	    update_measure_data();
-			} 
-		} 
-		else 
-		{// 主机接收，从机发送
-		//	if(offset==16)// address of measure data
-			{
-				//update_measure_data();
-			}
-			//		update_measure_data();
-			HAL_I2C_Slave_Seq_Transmit_IT(hi2c, &ram_i2c[offset], 1, I2C_NEXT_FRAME);  
-		}
-	}
-}
-
-// I2C receive data callback
-void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
-{
-	if (hi2c->Instance==I2C1){
-		//USART2_printf("HAL_I2C_SlaveRxCpltCallback \n" );
-		if(first_byte_state) 
-		{// received the first data
-			first_byte_state = 0;
-		} 
-		else 
-		{ 
-			offset++;  //  
-		}
-		// enable recevie callback
-		//mark  HAL_I2C_Slave_Seq_Receive_IT(hi2c, &ram_i2c[offset], sizeof(Receive_D), I2C_NEXT_FRAME);   
-		HAL_I2C_Slave_Seq_Receive_IT(hi2c, &ram_i2c[offset], 1, I2C_NEXT_FRAME);  // receive
-	}
-}
-
-// I2C send callback
-void HAL_I2C_SlaveTxCpltCallback(I2C_HandleTypeDef *hi2c)
-{
-	if (hi2c->Instance==I2C1){
-		offset++;  //  
-		HAL_I2C_Slave_Seq_Transmit_IT(hi2c, &ram_i2c[offset], sizeof(Receive_D), I2C_NEXT_FRAME);  // send data with IT
-	}
-}
+uint8_t offset;
 
 
 /* USER CODE END PFP */
@@ -733,29 +684,6 @@ static void config_save(void)
     HAL_FLASH_Lock();
 }
 
-void Flash_OB_Handle(void) {
-	FLASH_OBProgramInitTypeDef optionsbytesstruct;
-	bool UPDATE = false;
-
-	HAL_FLASHEx_OBGetConfig(&optionsbytesstruct);
-	uint32_t userconfig = optionsbytesstruct.USERConfig;
-
-	if((userconfig & FLASH_OPTR_nBOOT_SEL_Msk) != OB_BOOT0_FROM_PIN) {
-		userconfig &= ~FLASH_OPTR_nBOOT_SEL_Msk;
-		userconfig |= OB_BOOT0_FROM_PIN;
-		UPDATE = true;
-	}
-
-	if(UPDATE) {
-		optionsbytesstruct.USERConfig = userconfig;
-		HAL_FLASH_Unlock();
-		HAL_FLASH_OB_Unlock();
-		HAL_FLASHEx_OBProgram(&optionsbytesstruct);
-		HAL_FLASH_OB_Launch();
-		HAL_FLASH_OB_Lock();
-		HAL_FLASH_Lock();
-	}
-}
 /* USER CODE END 0 */
 
 /**
@@ -792,15 +720,14 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM1_Init();
   MX_TIM3_Init();
-  MX_I2C1_Init();
   MX_TIM14_Init();
+  MX_USART1_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start_IT(&htim1); 
-	HAL_TIM_Base_Start_IT(&htim14);
+  HAL_TIM_Base_Start_IT(&htim1);
+  HAL_TIM_Base_Start_IT(&htim14);
 	re_index=0;
 	re_end=0;
 	offset=0;
-  Flash_OB_Handle();
 	memset(&R_CMD.version[0],0,sizeof(R_CMD));
 
 	ram_i2c = &R_CMD.version[0];
@@ -809,19 +736,12 @@ int main(void)
 	config_load();              /* restore threshold saved in flash (if any) */
 	R_CMD.status_clk=ENDSTOP_OSR;
 
-
-	//USART2_printf("adc:start\n");
-
-//	thrshld_z=adc_data.channel0;
-	//USART2_printf("adc:%d %d %d\n",adc_data.channel0,adc_data.response,adc_data.crc);
-
-	normal_z = 0; 
+	normal_z = 0;
 	end_z = 0;
-	if(HAL_I2C_EnableListen_IT(&hi2c1) != HAL_OK)
-	{
-	 /* Transfer error in reception process */
-	 Error_Handler();
-	}
+
+	/* Arm USART1 RX (PB7, printer board) */
+	HAL_UART_Receive_IT(&huart1, &tmp_r, 1);
+
 	//40Hz=0X14 90Hz=0x34 2K=0XD4
 	ADS1220_Init(4,0xD4);
 	R_CMD.invert_data=1;
@@ -948,72 +868,17 @@ void SystemClock_Config(void)
   }
 }
 
-/**
-  * @brief I2C1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_I2C1_Init(void)
-{
-
-  /* USER CODE BEGIN I2C1_Init 0 */
-
-  /* USER CODE END I2C1_Init 0 */
-
-  /* USER CODE BEGIN I2C1_Init 1 */
-
-  /* USER CODE END I2C1_Init 1 */
-  hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x20303E5D;
-  hi2c1.Init.OwnAddress1 = 8;
-  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
-  hi2c1.Init.OwnAddress2 = 0;
-  hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
-  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
-  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Analogue filter
-  */
-  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Digital filter
-  */
-  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN I2C1_Init 2 */
-
-  /* USER CODE END I2C1_Init 2 */
-
-}
 
 /**
-  * @brief TIM1 Initialization Function
+  * @brief TIM14 Initialization Function
   * @param None
   * @retval None
   */
 static void MX_TIM1_Init(void)
 {
-
-  /* USER CODE BEGIN TIM1_Init 0 */
-
-  /* USER CODE END TIM1_Init 0 */
-
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
 
-  /* USER CODE BEGIN TIM1_Init 1 */
-
-  /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
   htim1.Init.Prescaler = 48-1;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
@@ -1021,78 +886,34 @@ static void MX_TIM1_Init(void)
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
-  {
-    Error_Handler();
-  }
+  if (HAL_TIM_Base_Init(&htim1) != HAL_OK) { Error_Handler(); }
   sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
+  if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK) { Error_Handler(); }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterOutputTrigger2 = TIM_TRGO2_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM1_Init 2 */
-
-  /* USER CODE END TIM1_Init 2 */
-
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK) { Error_Handler(); }
 }
 
-/**
-  * @brief TIM3 Initialization Function
-  * @param None
-  * @retval None
-  */
 static void MX_TIM3_Init(void)
 {
-
-  /* USER CODE BEGIN TIM3_Init 0 */
-
-  /* USER CODE END TIM3_Init 0 */
-
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
 
-  /* USER CODE BEGIN TIM3_Init 1 */
-
-  /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 48-1;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim3.Init.Period = IO_USART_SENDDELAY_TIME;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
-  {
-    Error_Handler();
-  }
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK) { Error_Handler(); }
   sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK) { Error_Handler(); }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM3_Init 2 */
-
-  /* USER CODE END TIM3_Init 2 */
-
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK) { Error_Handler(); }
 }
 
-/**
-  * @brief TIM14 Initialization Function
-  * @param None
-  * @retval None
-  */
 static void MX_TIM14_Init(void)
 {
 
@@ -1153,13 +974,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : RX_Pin */
+  /*Configure GPIO pin : RX_Pin (PA12) — bit-bang UART RX from USB/CH340 */
   GPIO_InitStruct.Pin = RX_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(RX_GPIO_Port, &GPIO_InitStruct);
 
-  /* EXTI interrupt init*/
+  /* EXTI interrupt init */
   HAL_NVIC_SetPriority(EXTI4_15_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
 
@@ -1168,6 +989,27 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+/**
+  * @brief USART1 Initialization — 38400 8N1 on PB6 (TX, AF0) / PB7 (RX, AF0).
+  * PB6/PB7 are direct physical pads on UFQFPN20 (pins 18/19) → WAFER/I2C connector → printer board.
+  */
+static void MX_USART1_Init(void)
+{
+  huart1.Instance          = USART1;
+  huart1.Init.BaudRate     = 38400;
+  huart1.Init.WordLength   = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits     = UART_STOPBITS_1;
+  huart1.Init.Parity       = UART_PARITY_NONE;
+  huart1.Init.Mode         = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl    = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
 
 /* USER CODE END 4 */
 
@@ -1178,10 +1020,17 @@ static void MX_GPIO_Init(void)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
+  /* Blink PA8 at ~10 Hz so a failed init is visible on the endstop LED */
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  {
+    GPIO_InitTypeDef g = {0};
+    g.Pin = GPIO_PIN_8; g.Mode = GPIO_MODE_OUTPUT_PP; g.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOA, &g);
+  }
   while (1)
   {
+    HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_8);
+    HAL_Delay(100);
   }
   /* USER CODE END Error_Handler_Debug */
 }

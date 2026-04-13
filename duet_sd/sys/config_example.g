@@ -4,16 +4,30 @@
 ; Copy the relevant sections into your existing config.g.
 ;
 ; -----------------------------------------------------------------------
-; 1. USB serial port — enable Marlin emulation pass-through
+; 1. Serial port selection — set once, used by all bd_pressure macros
+; -----------------------------------------------------------------------
+; All bd_pressure macros read global.bd_port to know which serial port to
+; use.  Set it here so you only need to change it in one place.
+;
+;   0 = Duet USB port (direct USB connection — most common)
+;   1 = io0 / aux UART (Pi Zero bridge or direct UART wiring)
+;
+global.bd_port = 0           ; *** set to 1 if using Pi Zero bridge or direct UART ***
+
+; -----------------------------------------------------------------------
+; 2. USB serial port — enable Marlin emulation pass-through
 ; -----------------------------------------------------------------------
 ; The bd_pressure sensor communicates at 38400 baud over the Duet USB host
 ; port (P0).  M575 S1 enables pass-through so the sensor's responses appear
 ; in the DWC console and macros can send commands with M118 P0.
 ;
+; If using the Pi Zero bridge on io0, use P1 instead of P0.
+;
 M575 P0 S1 B38400   ; USB host port: pass-through at 38400 baud (bd_pressure default)
+; M575 P1 S1 B38400 ; io0 / aux UART — use this instead if using Pi Zero bridge
 
 ; -----------------------------------------------------------------------
-; 2. Z probe — define bd_pressure as a switch-type probe
+; 3. Z probe — define bd_pressure as a switch-type probe
 ; -----------------------------------------------------------------------
 ; bd_pressure acts as a standard digital switch endstop on the Z- pin.
 ; Use the line that matches your board generation.
@@ -33,14 +47,14 @@ G31 P500 X0 Y0 Z-0.1   ; probe trigger value and nozzle offsets
                          ; *** adjust Z offset after first probe run ***
 
 ; -----------------------------------------------------------------------
-; 3. deploy/retract macros
+; 4. deploy/retract macros
 ; -----------------------------------------------------------------------
 ; RRF calls deployprobe.g before each probe tap and retractprobe.g after.
 ; Both files must exist in /sys/ — retractprobe.g can be empty.
 ; They are included in the duet_sd/sys/ folder of this repository.
 
 ; -----------------------------------------------------------------------
-; 4. Pressure Advance — apply calibration result
+; 5. Pressure Advance — apply calibration result
 ; -----------------------------------------------------------------------
 ; After running pa_calibrate.g the result is saved to /sys/pa_result.g.
 ; Include it here so it is applied automatically on every boot.
@@ -49,7 +63,7 @@ G31 P500 X0 Y0 Z-0.1   ; probe trigger value and nozzle offsets
 ; M98 P"/sys/pa_result.g"
 
 ; -----------------------------------------------------------------------
-; 5. Optional — restore PA mode on boot for Klipper-style raw data output
+; 6. Optional — restore PA mode on boot for Klipper-style raw data output
 ; -----------------------------------------------------------------------
 ; Not needed for RRF automated calibration.  Only uncomment if you are
 ; using the sensor in raw ADC mode for custom tooling.

@@ -11,6 +11,7 @@
 ; -----------------------------------------------------------------------
 ; Parameters — edit these to match your printer and filament
 ; -----------------------------------------------------------------------
+; global.bd_port must be set in config.g (0 = USB, 1 = io0 / Pi Zero bridge)
 var tool          = 0        ; tool number (T0, T1, etc.)
 var extruder      = 0        ; extruder index for M572 (usually same as tool)
 var nozzle_temp   = 210      ; °C  nozzle print temperature
@@ -45,7 +46,7 @@ var start_z       = 0.3      ; mm above bed — increase if you have a textured 
 ; be ignored and the macro will time out on the G4 dwell.
 ; -----------------------------------------------------------------------
 M118 P2 S"bd_pressure: checking firmware version..."
-M118 P0 S"v;"
+M118 P{global.bd_port} S"v;"
 G4 P500
 M118 P2 S"bd_pressure: if version is not 'bd_pressure-rrf-v2', abort now (M108) and flash the correct firmware."
 
@@ -76,7 +77,7 @@ G1 X{var.start_x} Y{var.start_y} Z{var.start_z} F{var.travel_speed}
 ; -----------------------------------------------------------------------
 ; Step 4 — Trigger bd_pressure
 ;
-; M118 P0 sends the trigger string to the sensor over USB.
+; M118 P{global.bd_port} sends the trigger string to the sensor over USB.
 ; The sensor parses the parameters and takes over the USB link.
 ; RRF returns immediately from this line — the sensor is now in control.
 ;
@@ -89,7 +90,7 @@ G1 X{var.start_x} Y{var.start_y} Z{var.start_z} F{var.travel_speed}
 ; from the sensor — if nothing appears, check wiring and firmware version.
 ; -----------------------------------------------------------------------
 M118 P2 S"bd_pressure: starting PA calibration — waiting for sensor response..."
-M118 P0 S{"l:H" ^ var.high_speed ^ ":L" ^ var.low_speed ^ ":T" ^ var.travel_speed ^ ":S" ^ var.pa_step ^ ":N" ^ var.steps ^ ":E" ^ var.extruder ^ ":P" ^ var.pa_start ^ ";"}
+M118 P{global.bd_port} S{"l:H" ^ var.high_speed ^ ":L" ^ var.low_speed ^ ":T" ^ var.travel_speed ^ ":S" ^ var.pa_step ^ ":N" ^ var.steps ^ ":E" ^ var.extruder ^ ":P" ^ var.pa_start ^ ";"}
 
 ; -----------------------------------------------------------------------
 ; Step 5 — Wait for calibration to complete
@@ -101,7 +102,7 @@ M118 P0 S{"l:H" ^ var.high_speed ^ ":L" ^ var.low_speed ^ ":T" ^ var.travel_spee
 ; (~5 s/line typical, 10 s/line gives headroom for slow moves or heat soak).
 ; With the default 50 steps this is 500 s (~8 min).
 ;
-; To abort mid-run: send  M118 P0 S"a;"  from the DWC console.
+; To abort mid-run: send  M118 P{global.bd_port} S"a;"  from the DWC console.
 ; -----------------------------------------------------------------------
 G4 S{var.steps * 10}            ; wait steps × 10 s (adjust multiplier if needed)
 M118 P2 S"bd_pressure: dwell complete. If no result popup appeared, check sensor connection and firmware version."

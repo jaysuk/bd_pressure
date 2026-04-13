@@ -6,12 +6,14 @@
 ;
 ; The sensor will respond with: bd_pressure-rrf-v2
 ; The response appears in the DWC console (the sensor sends it as M118 P2).
+;
+; global.bd_port is set in config.g:
+;   global.bd_port = 0   ; 0 = USB (default), 1 = io0 (Pi Zero bridge / direct UART)
 
 M118 P2 S"bd_pressure: sending version query (v;) ..."
 
 ; Send version query to the sensor
-; P0 = USB host port (change to P1 if sensor is on the PanelDue/aux UART)
-M118 P0 S"v;"
+M118 P{global.bd_port} S"v;"
 
 ; Wait for response
 G4 P500

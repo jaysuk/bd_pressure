@@ -17,8 +17,11 @@
 ;   thr   — current trigger threshold (0–99, default 4)
 ;   inv   — polarity inversion (0 = normal, 1 = inverted)
 ;   ver   — firmware version
+;
+; global.bd_port is set in config.g:
+;   global.bd_port = 0   ; 0 = USB (default), 1 = io0 (Pi Zero bridge / direct UART)
 
 M118 P2 S"bd_pressure: querying status — check the Console tab for the response..."
-M118 P0 S"s;"
+M118 P{global.bd_port} S"s;"
 G4 P500
 M118 P2 S"bd_pressure: expected format: mode:<endstop|pa>;thr:<n>;inv:<0|1>;ver:v2"

@@ -26,9 +26,16 @@
 - Unknown parameter keys in the trigger string are now logged to the console rather than silently ignored
 - New `P` parameter sets the PA sweep start value (default 0.0), e.g. `:P0.03:S0.001:N40;` sweeps 0.030–0.070
 
+**Hardware UART on I2C connector pins**
+- Replaced software bit-bang UART (TIM1/TIM3 on PA11/PA12) with hardware USART1
+- USART1 TX/RX mapped to PA11[PA9] / PA12[PA10] (AF1) — the two pins on the I2C connector
+- I2C slave interface removed (no longer needed for RRF-only builds)
+- Enables direct 3.3V UART wiring from the connector to a Raspberry Pi or printer board
+  without a USB-to-serial adapter or Pi Zero OTG bridge
+
 **Build**
 - Compiler: ARM Compiler 6.24 (ARMCLANG), Keil MDK Lite 5.43
-- Code size: 30,716 bytes (target: STM32C011F6U6, 32KB flash)
+- Code size: 26,784 bytes (target: STM32C011F6U6, 32KB flash)
 - 0 errors, 0 warnings
 
 ---
