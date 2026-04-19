@@ -49,7 +49,8 @@ extern unsigned char PolarFlag;
 int GetAD(unsigned char channel, unsigned char continue_mode);
 
 #include <string.h>
-#include <stdlib.h>   /* atoi, atof */
+/* stdlib.h omitted — atoi/atof replaced with _s_atoi/_s_atof to avoid
+   pulling scanf_fp.o and bloating past the 32 KB MDK-Lite flash limit. */
 
 /* -----------------------------------------------------------------------
  * External symbols from main.c / pa.lib
@@ -131,6 +132,36 @@ static char *_f_s(char *p, float v, uint8_t prec)
         else        *p++ = '0';
     }
     return p;
+}
+
+/* Parse unsigned decimal integer from string (replaces atoi for positive values). */
+static uint32_t _s_atoi(const char *s)
+{
+    uint32_t v = 0;
+    while (*s >= '0' && *s <= '9') { v = v * 10 + (uint32_t)(*s - '0'); s++; }
+    return v;
+}
+
+/* Parse simple decimal float like "0.005" or "1.25" (replaces atof).
+ * Handles optional leading '-', integer part, optional '.' + fraction.
+ * Sufficient for PA step/start values — no exponent support needed. */
+static float _s_atof(const char *s)
+{
+    float sign = 1.0f;
+    if (*s == '-') { sign = -1.0f; s++; }
+    uint32_t ipart = 0;
+    while (*s >= '0' && *s <= '9') { ipart = ipart * 10 + (uint32_t)(*s - '0'); s++; }
+    float result = (float)ipart;
+    if (*s == '.') {
+        s++;
+        float scale = 0.1f;
+        while (*s >= '0' && *s <= '9') {
+            result += (float)(*s - '0') * scale;
+            scale *= 0.1f;
+            s++;
+        }
+    }
+    return sign * result;
 }
 
 /* -----------------------------------------------------------------------
@@ -232,25 +263,25 @@ void pa_rrf_parse_params(pa_rrf_params_t *p, const char *str)
         /* Identify key by first character(s) */
         if (*key == 'H') {
             val = key + 1;
-            p->speed_high = (uint32_t)atoi(val);
+            p->speed_high = _s_atoi(val);
         } else if (*key == 'L') {
             val = key + 1;
-            p->speed_low = (uint32_t)atoi(val);
+            p->speed_low = _s_atoi(val);
         } else if (*key == 'T') {
             val = key + 1;
-            p->speed_travel = (uint32_t)atoi(val);
+            p->speed_travel = _s_atoi(val);
         } else if (*key == 'S') {
             val = key + 1;
-            p->pa_step = (float)atof(val);
+            p->pa_step = _s_atof(val);
         } else if (*key == 'N') {
             val = key + 1;
-            p->pa_steps = (uint8_t)atoi(val);
+            p->pa_steps = (uint8_t)_s_atoi(val);
         } else if (*key == 'E') {
             val = key + 1;
-            p->extruder = (uint8_t)atoi(val);
+            p->extruder = (uint8_t)_s_atoi(val);
         } else if (*key == 'P') {
             val = key + 1;
-            p->pa_start = (float)atof(val);
+            p->pa_start = _s_atof(val);
         } else {
             /* Unknown key — log it so the user can spot typos in the trigger */
             USART2_printf("PA_RRF: unknown param key '%c', ignored\n", *key);
@@ -663,8 +694,9 @@ void pa_rrf_run(void)
             s_result.sample_count = s_data_count;
             s_result.valid        = true;
 
-            USART2_printf("PA_RRF: best PA=%.4f (%u samples)\n",
-                          (double)best_pa, s_data_count);
+            /* Log without float printf — build string with _f_s to stay within flash */
+            { char *p = buf; const char *h = "PA_RRF: best PA="; while(*h) *p++=*h++; p=_f_s(p,best_pa,4); *p='\0'; }
+            USART2_printf("%s (%u samples)\n", buf, (unsigned)s_data_count);
         }
         else
         {
@@ -699,9 +731,9 @@ void pa_rrf_run(void)
              *    The user must press OK to dismiss it.
              */
             { char *p = buf;
-              memcpy(p, "M291 P\"Calibration complete!\\nBest Pressure Advance: ", 52); p += 52;
+              memcpy(p, "M291 P\"<b>Calibration complete!</b><br><b>Best Pressure Advance:</b> ", 69); p += 69;
               p = _f_s(p, best_pa, 4);
-              memcpy(p, "\\n\\nAdd to config.g:\\nM572 D", 25); p += 25;
+              memcpy(p, "<br><br><b>Add to config.g:</b><br>M572 D", 41); p += 41;
               p = _u32_s(p, (uint32_t)s_params.extruder);
               memcpy(p, " S", 2); p += 2; p = _f_s(p, best_pa, 4);
               memcpy(p, "\" R\"bd_pressure PA Result\" S2", 29); p += 29; *p = '\0'; }
@@ -727,7 +759,7 @@ void pa_rrf_run(void)
         {
             /* Notify failure visibly too */
             _cmd("M118 P2 S\"bd_pressure: PA calibration failed — no valid result collected\"");
-            _cmd("M291 P\"PA calibration did not produce a valid result.\\n"
+            _cmd("M291 P\"<b>PA calibration failed.</b><br>"
                  "Check that filament is loaded and the nozzle is at print temperature.\" "
                  "R\"bd_pressure\" S2");
         }

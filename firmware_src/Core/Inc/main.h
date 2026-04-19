@@ -62,7 +62,7 @@ void Error_Handler(void);
 #define RX_EXTI_IRQn EXTI4_15_IRQn
 
 /* USER CODE BEGIN Private defines */
-
+#define FIRMWARE_VERSION "bd_pressure-rrf-v2.17"
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

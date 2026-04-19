@@ -6,25 +6,22 @@
 ; -----------------------------------------------------------------------
 ; 1. Serial port selection — set once, used by all bd_pressure macros
 ; -----------------------------------------------------------------------
-; All bd_pressure macros read global.bd_port to know which serial port to
-; use.  Set it here so you only need to change it in one place.
+; bd_globals.g sets three globals used by all bd_pressure macros:
+;   global.bd_port — M575/M261.2 port number (1 = first aux UART)
+;   global.bd_uart — M118 port number for sending to the sensor (2 = first aux UART)
+;   global.bd_baud — baud rate (default 115200)
+; These are separate because M575 and M118 use different port numbering.
+; If you move the sensor to a different port or change baud rate, update bd_globals.g.
 ;
-;   0 = Duet USB port (direct USB connection — most common)
-;   1 = io0 / aux UART (Pi Zero bridge or direct UART wiring)
-;
-global.bd_port = 0           ; *** set to 1 if using Pi Zero bridge or direct UART ***
+M98 P"/sys/bd_globals.g"     ; initialise bd_pressure globals
 
 ; -----------------------------------------------------------------------
-; 2. USB serial port — enable Marlin emulation pass-through
+; 2. UART port — device mode for M260.2/M261.2
 ; -----------------------------------------------------------------------
-; The bd_pressure sensor communicates at 38400 baud over the Duet USB host
-; port (P0).  M575 S1 enables pass-through so the sensor's responses appear
-; in the DWC console and macros can send commands with M118 P0.
+; S2 = raw mode, sensor responses appear directly in the DWC console.
+; The baud rate is read from global.bd_baud (set in bd_globals.g).
 ;
-; If using the Pi Zero bridge on io0, use P1 instead of P0.
-;
-M575 P0 S1 B38400   ; USB host port: pass-through at 38400 baud (bd_pressure default)
-; M575 P1 S1 B38400 ; io0 / aux UART — use this instead if using Pi Zero bridge
+M575 P{global.bd_port} S2 B{global.bd_baud}
 
 ; -----------------------------------------------------------------------
 ; 3. Z probe — define bd_pressure as a switch-type probe
@@ -61,11 +58,3 @@ G31 P500 X0 Y0 Z-0.1   ; probe trigger value and nozzle offsets
 ;
 ; Uncomment the line below once you have a calibration result:
 ; M98 P"/sys/pa_result.g"
-
-; -----------------------------------------------------------------------
-; 6. Optional — restore PA mode on boot for Klipper-style raw data output
-; -----------------------------------------------------------------------
-; Not needed for RRF automated calibration.  Only uncomment if you are
-; using the sensor in raw ADC mode for custom tooling.
-;
-; M118 P0 S"l;"   ; switch to PA/ADC mode on boot

@@ -24,5 +24,5 @@
 
 M400                    ; wait for all moves to complete
 G4 P500                 ; dwell — let toolhead vibration settle
-M118 P0 S"N;"           ; re-baseline the probe (lock current reading as normal_z)
+M118 P{global.bd_uart} S"N;"  ; re-baseline the probe (lock current reading as normal_z)
 G4 P300                 ; dwell — let ADC capture the new baseline
