@@ -234,22 +234,22 @@ static void config_save(void);
 						R_CMD.log_mode=0;
 						rrf_log("bd_pressure: trigger logging disabled");
 				}
-				else if(cmd=='v'){ // report firmware version
-						rrf_log(FIRMWARE_VERSION);
-				}
 				else if(rxData[0]=='v' && rxData[1]=='e' && rxData[2]=='r'){ // ver; — return version as single byte
 						/* 'ver;' — transmit firmware version as a single byte.
-						 * Encoded as major*100 + minor (e.g. v2.20 = 220).
-						 * Read with M261.2 B1. */
+						 * Encoded as major*100 + minor (e.g. v2.21 = 221).
+						 * Read with M261.2 B1. Must come before cmd=='v' check. */
 						uint8_t vbyte = FIRMWARE_VERSION_BYTE;
 						HAL_UART_Transmit(&huart1, &vbyte, 1, 50);
 				}
 				else if(rxData[0]=='m' && rxData[1]=='o' && rxData[2]=='d' && rxData[3]=='e'){ // mode; — return current operating mode as single byte
 						/* 'mode;' — transmit current mode as a single byte.
 						 * 0 = PA mode, 1 = endstop mode.
-						 * Read with M261.2 B1. */
+						 * Read with M261.2 B1. Must come before any single-char 'm' check. */
 						uint8_t mbyte = (R_CMD.status_clk == PA_OSR) ? 0 : 1;
 						HAL_UART_Transmit(&huart1, &mbyte, 1, 50);
+				}
+				else if(cmd=='v'){ // report firmware version (console)
+						rrf_log(FIRMWARE_VERSION);
 				}
 				
 				else if(cmd=='c'){ // enter RRF-controlled PA sampling mode
