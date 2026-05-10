@@ -62,8 +62,8 @@ void Error_Handler(void);
 #define RX_EXTI_IRQn EXTI4_15_IRQn
 
 /* USER CODE BEGIN Private defines */
-#define FIRMWARE_VERSION      "bd_pressure-rrf-v2.22"
-#define FIRMWARE_VERSION_BYTE 222    /* major*100 + minor: v2.22 = 222 */
+#define FIRMWARE_VERSION      "bd_pressure-rrf-v2.23"
+#define FIRMWARE_VERSION_BYTE 223    /* major*100 + minor: v2.23 = 223 */
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

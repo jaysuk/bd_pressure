@@ -184,8 +184,8 @@ static void config_save(void);
 
 			  if(cmd=='x'){ // reserved — unused
 				}
-								else if(rxData[0]=='s' && rxData[1]=='c' && rxData[2]=='o' &&
-				        rxData[3]=='r' && rxData[4]=='e'){ // score query
+								else if(j>=5 && rxData[j-5]=='s' && rxData[j-4]=='c' && rxData[j-3]=='o' &&
+				        rxData[j-2]=='r' && rxData[j-1]=='e'){ // score query
 						/* 'score;' — return latest pa_result as a single raw byte.
 						 * Value is 0-255 (unsigned char); lower = better PA fit.
 						 * Returns 0x00 if no result is available yet (pa_list == 0).
@@ -196,8 +196,8 @@ static void config_save(void);
 						iouart1_SendByte(score);
 						HAL_UART_Transmit(&huart1, &score, 1, 10);
 				}
-				else if(rxData[0]=='r' && rxData[1]=='d' && rxData[2]=='a' &&
-				        rxData[3]=='t' && rxData[4]=='a'){ // rdata query
+				else if(j>=5 && rxData[j-5]=='r' && rxData[j-4]=='d' && rxData[j-3]=='a' &&
+				        rxData[j-2]=='t' && rxData[j-1]=='a'){ // rdata query
 						/* 'rdata;' — return the last full R:res,lk,rk,Hk,Ha string from resultp.
 						 * Returns "R:0,0,0,0,0\n" if no result is available yet. */
 						if (pa_rdata_ready && pa_rdata_len > 0) {
@@ -207,8 +207,8 @@ static void config_save(void);
 							HAL_UART_Transmit(&huart1, (uint8_t *)empty, 12, 50);
 						}
 				}
-				else if(rxData[0]=='p' && rxData[1]=='d' && rxData[2]=='a' &&
-				        rxData[3]=='t' && rxData[4]=='a'){ // pdata query
+				else if(j>=5 && rxData[j-5]=='p' && rxData[j-4]=='d' && rxData[j-3]=='a' &&
+				        rxData[j-2]=='t' && rxData[j-1]=='a'){ // pdata query
 						/* 'pdata;' — return the last 5 PA metric values as 5 raw bytes:
 						 *   byte 0 = res, 1 = lk, 2 = rk, 3 = Hk, 4 = Ha
 						 * Read with M261.2 B5.  All zero if no result is available. */
@@ -234,17 +234,17 @@ static void config_save(void);
 						R_CMD.log_mode=0;
 						rrf_log("bd_pressure: trigger logging disabled");
 				}
-				else if(rxData[0]=='v' && rxData[1]=='e' && rxData[2]=='r'){ // ver; — return version as single byte
+				else if(j>=3 && rxData[j-3]=='v' && rxData[j-2]=='e' && rxData[j-1]=='r'){ // ver; — return version as single byte
 						/* 'ver;' — transmit firmware version as a single byte.
-						 * Encoded as major*100 + minor (e.g. v2.21 = 221).
-						 * Read with M261.2 B1. Must come before cmd=='v' check. */
+						 * Encoded as major*100 + minor (e.g. v2.22 = 222).
+						 * Read with M261.2 B1. */
 						uint8_t vbyte = FIRMWARE_VERSION_BYTE;
 						HAL_UART_Transmit(&huart1, &vbyte, 1, 50);
 				}
-				else if(rxData[0]=='m' && rxData[1]=='o' && rxData[2]=='d' && rxData[3]=='e'){ // mode; — return current operating mode as single byte
+				else if(j>=4 && rxData[j-4]=='m' && rxData[j-3]=='o' && rxData[j-2]=='d' && rxData[j-1]=='e'){ // mode; — return current operating mode as single byte
 						/* 'mode;' — transmit current mode as a single byte.
 						 * 0 = PA mode, 1 = endstop mode.
-						 * Read with M261.2 B1. Must come before any single-char 'm' check. */
+						 * Read with M261.2 B1. */
 						uint8_t mbyte = (R_CMD.status_clk == PA_OSR) ? 0 : 1;
 						HAL_UART_Transmit(&huart1, &mbyte, 1, 50);
 				}
