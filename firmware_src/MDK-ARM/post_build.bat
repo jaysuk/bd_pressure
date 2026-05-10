@@ -10,7 +10,7 @@ set HEX_SRC=STM32C011F6U6\STM32C011F6U6.hex
 set RELEASE_DIR=..\release_hex
 
 :: Extract version string from #define FIRMWARE_VERSION "..."
-for /f "tokens=3 delims= " %%V in ('findstr /c:"#define FIRMWARE_VERSION" "%HEADER%"') do set VERSION=%%V
+for /f "tokens=3 delims= " %%V in ('findstr /c:"#define FIRMWARE_VERSION " "%HEADER%"') do set VERSION=%%V
 
 :: Strip surrounding quotes
 set VERSION=%VERSION:"=%

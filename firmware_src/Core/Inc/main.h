@@ -63,7 +63,7 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN Private defines */
 #define FIRMWARE_VERSION      "bd_pressure-rrf-v2.22"
-#define FIRMWARE_VERSION_BYTE 222u   /* major*100 + minor: v2.22 = 222 */
+#define FIRMWARE_VERSION_BYTE 222    /* major*100 + minor: v2.22 = 222 */
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
