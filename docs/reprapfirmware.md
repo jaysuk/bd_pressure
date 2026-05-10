@@ -231,7 +231,7 @@ Each run writes `/sys/pa_calibrate_log.txt` with a `#` comment header followed b
 
 ```
 # bd_pressure PA calibration
-# date=2026-05-10T12:34:56
+# date=2026-05-10T12:34:56+00:00
 # rrf_version=3.6.0
 # bd_version=bd_pressure-rrf-v2.20
 # mode=pa

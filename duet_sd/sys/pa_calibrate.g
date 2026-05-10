@@ -113,7 +113,7 @@ G4 P200
 M261.2 P{global.bd_port} B16 V"bd_mode"
 
 echo >"0:/sys/pa_calibrate_log.txt"  {"# bd_pressure PA calibration"}
-echo >>"0:/sys/pa_calibrate_log.txt" {"# date=" ^ {datetime}}
+echo >>"0:/sys/pa_calibrate_log.txt" {"# date=" ^ state.time}
 echo >>"0:/sys/pa_calibrate_log.txt" {"# rrf_version=" ^ boards[0].firmwareVersion}
 echo >>"0:/sys/pa_calibrate_log.txt" {"# bd_version=" ^ var.bd_ver[0]}
 echo >>"0:/sys/pa_calibrate_log.txt" {"# mode=" ^ var.bd_mode[0]}
