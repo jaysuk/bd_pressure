@@ -118,6 +118,15 @@ Receive_D  R_CMD;
  unsigned char pa_result[128];
  unsigned char pa_list=0;
 
+/* Last 5 PA metrics from pa.lib — populated after each get_low_value() call.
+ * Field order matches the Klipper R: output: res, lk, rk, Hk, Ha.
+ * pa_rdata[] holds the formatted "R:res,lk,rk,Hk,Ha\n" string for rdata;. */
+#define PA_RDATA_SIZE 32
+static char     pa_rdata[PA_RDATA_SIZE];
+static uint8_t  pa_rdata_len   = 0;
+static uint8_t  pa_rdata_ready = 0;
+static uint8_t  pa_vals[5]     = {0,0,0,0,0};
+
 uint8_t rxData[64],tmp_r;   
 int re_index=0,re_end=0;
 int normal_tmp[5]={0,0,0,0,0},normal_z=0,z_cnt=0;
@@ -187,6 +196,24 @@ static void config_save(void);
 						iouart1_SendByte(score);
 						HAL_UART_Transmit(&huart1, &score, 1, 10);
 				}
+				else if(rxData[0]=='r' && rxData[1]=='d' && rxData[2]=='a' &&
+				        rxData[3]=='t' && rxData[4]=='a'){ // rdata query
+						/* 'rdata;' — return the last full R:res,lk,rk,Hk,Ha string from resultp.
+						 * Returns "R:0,0,0,0,0\n" if no result is available yet. */
+						if (pa_rdata_ready && pa_rdata_len > 0) {
+							HAL_UART_Transmit(&huart1, (uint8_t *)pa_rdata, pa_rdata_len, 50);
+						} else {
+							const char *empty = "R:0,0,0,0,0\n";
+							HAL_UART_Transmit(&huart1, (uint8_t *)empty, 12, 50);
+						}
+				}
+				else if(rxData[0]=='p' && rxData[1]=='d' && rxData[2]=='a' &&
+				        rxData[3]=='t' && rxData[4]=='a'){ // pdata query
+						/* 'pdata;' — return the last 5 PA metric values as 5 raw bytes:
+						 *   byte 0 = res, 1 = lk, 2 = rk, 3 = Hk, 4 = Ha
+						 * Read with M261.2 B5.  All zero if no result is available. */
+						HAL_UART_Transmit(&huart1, pa_vals, 5, 50);
+				}
 				else if(cmd=='e'){ // in probe mode
 						rrf_log("endstop mode");
 						R_CMD.status_clk= ENDSTOP_OSR;
@@ -210,17 +237,23 @@ static void config_save(void);
 				else if(cmd=='v'){ // report firmware version
 						rrf_log(FIRMWARE_VERSION);
 				}
+				else if(rxData[0]=='v' && rxData[1]=='e' && rxData[2]=='r'){ // ver; — return version string over UART
+						/* 'ver;' — transmit FIRMWARE_VERSION\n so M261.2 can read it back */
+						const char *ver = FIRMWARE_VERSION "\n";
+						HAL_UART_Transmit(&huart1, (uint8_t *)ver, strlen(ver), 50);
+				}
 				
 				else if(cmd=='c'){ // enter RRF-controlled PA sampling mode
 						/* 'c;' arms the sensor for RRF-controlled PA calibration.
-						 * The sensor switches to PA_OSR (high-res ADC), resets pa.lib
-						 * state, and starts continuously sampling.  RRF controls all
-						 * movement; after each line it sends 'score;' to retrieve the
-						 * latest pa_result value as ASCII decimal + '\n'.
-						 * Send 'e;' to return to endstop mode when done. */
+						 * Switches to PA_OSR (high-res ADC), resets all pa.lib state.
+						 * After each extrusion cycle send 'pdata;' (5 bytes: res,lk,rk,Hk,Ha)
+						 * or 'score;' (1 byte: res only).  Send 'e;' when done. */
 						R_CMD.status_clk = PA_OSR;
 						r_index  = 0;
 						pa_list  = 0;
+						pa_rdata_ready = 0;
+						pa_rdata_len   = 0;
+						memset(pa_vals,   0, sizeof(pa_vals));
 						memset(raw_dat,   0, RAW_DATE_LEN * sizeof(int));
 						memset(pa_result, 0, 128);
 						rrf_log("bd_pressure: PA sampling armed");
@@ -689,12 +722,37 @@ void Pressure_advance(void)
 		 if (edge > 2*SAMPLES){                        
 			 // USART2_printf("edge:%d\n",edge) ; 
 				if (edge > 0){
-					//#  print(raw_dat)
 						int ret = get_low_value((unsigned int *)raw_dat,edge);
 						if(ret>0){
 							pa_result[pa_list] = ret;
-						//	USART2_printf("Result:%d\n",pa_result[pa_list]) ; 
 							pa_list++;
+
+							/* Read the 5 pa.lib metrics directly from its exported globals.
+							 * k_left/k_right/H_left/H_right are populated by get_low_value().
+							 * Field order matches the Klipper R: output: res, lk, rk, Hk, Ha. */
+							pa_vals[0] = (uint8_t)(ret    > 255 ? 255 : ret);
+							pa_vals[1] = (uint8_t)(k_left  > 255 ? 255 : (k_left  < 0 ? 0 : k_left));
+							pa_vals[2] = (uint8_t)(k_right > 255 ? 255 : (k_right < 0 ? 0 : k_right));
+							pa_vals[3] = (uint8_t)(H_left  > 255 ? 255 : (H_left  < 0 ? 0 : H_left));
+							pa_vals[4] = (uint8_t)(H_right > 255 ? 255 : (H_right < 0 ? 0 : H_right));
+
+							/* Format "R:res,lk,rk,Hk,Ha\n" for rdata; using our own formatter */
+							{
+								char *p = pa_rdata;
+								char *end = pa_rdata + PA_RDATA_SIZE - 1;
+								*p++ = 'R'; *p++ = ':';
+								uint8_t l; uint8_t fi;
+								for (fi = 0; fi < 5; fi++) {
+									_u32_to_dec(p, (uint32_t)pa_vals[fi], &l);
+									p += l;
+									*p++ = (fi < 4) ? ',' : '\n';
+									if (p >= end) break;
+								}
+								*p = '\0';
+								pa_rdata_len = (uint8_t)(p - pa_rdata);
+							}
+							pa_rdata_ready = 1;
+
 							r_index = 0;
 							memset(raw_dat,0,sizeof(raw_dat));
 						}
