@@ -214,6 +214,20 @@ static void config_save(void);
 						 * Read with M261.2 B5.  All zero if no result is available. */
 						HAL_UART_Transmit(&huart1, pa_vals, 5, 50);
 				}
+				else if(j>=3 && rxData[j-3]=='v' && rxData[j-2]=='e' && rxData[j-1]=='r'){ // ver; — return version as single byte
+						/* 'ver;' — transmit firmware version as a single byte.
+						 * Encoded as major*100 + minor (e.g. v2.23 = 223).
+						 * Read with M261.2 B1. */
+						uint8_t vbyte = FIRMWARE_VERSION_BYTE;
+						HAL_UART_Transmit(&huart1, &vbyte, 1, 50);
+				}
+				else if(j>=4 && rxData[j-4]=='m' && rxData[j-3]=='o' && rxData[j-2]=='d' && rxData[j-1]=='e'){ // mode; — return current operating mode as single byte
+						/* 'mode;' — transmit current mode as a single byte.
+						 * 0 = PA mode, 1 = endstop mode.
+						 * Read with M261.2 B1. */
+						uint8_t mbyte = (R_CMD.status_clk == PA_OSR) ? 0 : 1;
+						HAL_UART_Transmit(&huart1, &mbyte, 1, 50);
+				}
 				else if(cmd=='e'){ // in probe mode
 						rrf_log("endstop mode");
 						R_CMD.status_clk= ENDSTOP_OSR;
@@ -233,20 +247,6 @@ static void config_save(void);
 				else if(cmd=='l'){ // disable trigger/open logging (default)
 						R_CMD.log_mode=0;
 						rrf_log("bd_pressure: trigger logging disabled");
-				}
-				else if(j>=3 && rxData[j-3]=='v' && rxData[j-2]=='e' && rxData[j-1]=='r'){ // ver; — return version as single byte
-						/* 'ver;' — transmit firmware version as a single byte.
-						 * Encoded as major*100 + minor (e.g. v2.22 = 222).
-						 * Read with M261.2 B1. */
-						uint8_t vbyte = FIRMWARE_VERSION_BYTE;
-						HAL_UART_Transmit(&huart1, &vbyte, 1, 50);
-				}
-				else if(j>=4 && rxData[j-4]=='m' && rxData[j-3]=='o' && rxData[j-2]=='d' && rxData[j-1]=='e'){ // mode; — return current operating mode as single byte
-						/* 'mode;' — transmit current mode as a single byte.
-						 * 0 = PA mode, 1 = endstop mode.
-						 * Read with M261.2 B1. */
-						uint8_t mbyte = (R_CMD.status_clk == PA_OSR) ? 0 : 1;
-						HAL_UART_Transmit(&huart1, &mbyte, 1, 50);
 				}
 				else if(cmd=='v'){ // report firmware version (console)
 						rrf_log(FIRMWARE_VERSION);

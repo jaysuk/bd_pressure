@@ -1,5 +1,41 @@
 # bd_pressure Firmware Changelog
 
+## v2.24 — bd_pressure-rrf-v2.24 (2026-05-10)
+
+**Bug fix: `mode;` command intercepted by `e;` handler**
+- `mode;` ends with the character `e`, so `cmd = rxData[j-1]` was `'e'` — causing the single-char `e;` handler to fire first, switching the sensor back to endstop mode and returning ASCII 77 (`M`) instead of the mode byte
+- Fixed by moving `ver;` and `mode;` multi-char checks to **before** the `cmd=='e'` single-char handler in the dispatch chain
+
+**Bug fix: version minor displayed as full byte value**
+- `var.bd_ver_minor = var.bd_ver_raw[0] % 100` used `%` which RRF GCode does not support as modulo
+- Fixed to `var.bd_ver_raw[0] - var.bd_ver_major * 100` in both `pa_calibrate.g` and `bd_uart_test.g`
+
+---
+
+## v2.23 — bd_pressure-rrf-v2.23 (2026-05-10)
+
+**Bug fix: all multi-char commands used absolute rxData indexing**
+- `score;`, `rdata;`, `pdata;`, `ver;`, `mode;` all used `rxData[0..N]` absolute indexing, which is only correct if the command starts at buffer position 0
+- Fixed to use `rxData[j-N..j-1]` (relative to the `;` position) for all multi-char command matches
+- This was the root cause of all multi-char commands failing silently
+
+---
+
+## v2.22 — bd_pressure-rrf-v2.22 (2026-05-10)
+
+**Bug fix: `FIRMWARE_VERSION_BYTE` define had trailing `u` suffix**
+- Removed `u` suffix from the numeric literal; post_build.bat was also fixed (trailing space in findstr pattern) so it no longer matches `FIRMWARE_VERSION_BYTE`
+
+---
+
+## v2.21 — bd_pressure-rrf-v2.21 (2026-05-10)
+
+**New sensor commands (single-byte binary responses)**
+- `ver;` — replaced string response with single-byte encoded version: `major×100 + minor` (e.g. 221 for v2.21). Read with `M261.2 B1`
+- `mode;` — replaced string response with single-byte: `0` = PA mode, `1` = endstop mode. Read with `M261.2 B1`
+
+---
+
 ## v2.20 — bd_pressure-rrf-v2.20 (2026-05-10)
 
 **New sensor commands**

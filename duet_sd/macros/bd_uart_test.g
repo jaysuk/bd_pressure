@@ -13,7 +13,7 @@ M260.2 P{global.bd_port} S"ver;"
 G4 P300
 M261.2 P{global.bd_port} B1 V"bd_ver_raw"
 var bd_ver_major = floor(var.bd_ver_raw[0] / 100)
-var bd_ver_minor = var.bd_ver_raw[0] % 100
+var bd_ver_minor = floor(var.bd_ver_raw[0] - var.bd_ver_major * 100)
 M118 P0 S{"bd_uart_test: version byte = " ^ var.bd_ver_raw[0] ^ " → v" ^ var.bd_ver_major ^ "." ^ var.bd_ver_minor}
 
 ; --- mode; before c; — 0=pa, 1=endstop ---

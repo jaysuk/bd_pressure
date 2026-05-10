@@ -101,7 +101,7 @@ M260.2 P{global.bd_port} S"ver;"
 G4 P300
 M261.2 P{global.bd_port} B1 V"bd_ver_raw"
 var bd_ver_major = floor(var.bd_ver_raw[0] / 100)
-var bd_ver_minor = var.bd_ver_raw[0] % 100
+var bd_ver_minor = floor(var.bd_ver_raw[0] - var.bd_ver_major * 100)
 var bd_version   = {"v" ^ var.bd_ver_major ^ "." ^ var.bd_ver_minor}
 
 ; Arm PA mode then read mode — 0=pa, 1=endstop
@@ -187,6 +187,7 @@ M572 D{var.extruder} S{var.best_pa}
 M28 /sys/pa_result.g
 M572 D{var.extruder} S{var.best_pa} ; bd_pressure PA calibration result
 M29
+M575 P{global.bd_port} S2 B{global.bd_baud}
 
 M118 P0 S{"bd_pressure: calibration complete. Best PA = " ^ var.best_pa ^ " (res=" ^ var.best_score ^ ", step " ^ var.best_i ^ ")"}
 M291 P{"<b>Calibration complete!</b><br><b>Best Pressure Advance:</b> " ^ var.best_pa ^ "<br><br><b>Add to config.g:</b><br>M572 D" ^ var.extruder ^ " S" ^ var.best_pa ^ "<br><br>Full log: /sys/pa_calibrate_log.txt"} R"bd_pressure PA Result" S2
@@ -196,7 +197,6 @@ M291 P{"<b>Calibration complete!</b><br><b>Best Pressure Advance:</b> " ^ var.be
 ; -----------------------------------------------------------------------
 M260.2 P{global.bd_port} S"e;"
 G4 P200
-M575 P{global.bd_port} S2 B{global.bd_baud}
 M568 P{var.tool} A0
 M400
 M118 P0 S"bd_pressure: done. Log saved to /sys/pa_calibrate_log.txt"

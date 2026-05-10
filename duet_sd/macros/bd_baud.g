@@ -26,7 +26,7 @@ elif input == 3
     set var.baud_val = 230400
 
 M118 P{global.bd_uart} S{var.baud_cmd}
-M118 P2 S{"bd_pressure: switching to " ^ var.baud_val ^ " baud — waiting for reboot..."}
+M118 P0 S{"bd_pressure: switching to " ^ var.baud_val ^ " baud — waiting for reboot..."}
 G4 P1500
 M575 P{global.bd_port} S2 B{var.baud_val}
 G4 P1500
