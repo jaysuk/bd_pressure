@@ -31,10 +31,10 @@ See [docs/pi_zero_bridge.md](pi_zero_bridge.md) for full setup instructions.
 ### Step 1 — Flash the firmware
 
 Put the STM32 into bootloader mode (hold BOOT0 high, press reset) and flash
-`firmware_src/release_hex/bd_pressure-rrf-v2.17.hex` using STM32CubeProgrammer:
+`firmware_src/release_hex/bd_pressure-rrf-v2.20.hex` using STM32CubeProgrammer:
 
 ```
-STM32_Programmer_CLI.exe -c port=<COMx> -w bd_pressure-rrf-v2.17.hex -v --start
+STM32_Programmer_CLI.exe -c port=<COMx> -w bd_pressure-rrf-v2.20.hex -v --start
 ```
 
 After flashing, the sensor boots into endstop/probe mode automatically.
@@ -76,7 +76,7 @@ card layout — copy the folder contents directly onto your Duet SD card.
 ### Step 5 — Verify the sensor
 
 Run `M98 P"/macros/bd_version.g"` from DWC. The sensor should respond with
-`bd_pressure-rrf-v2.17` in the DWC Console tab.
+`bd_pressure-rrf-v2.20` in the DWC Console tab.
 
 Run `M98 P"/macros/bd_status.g"` to confirm mode, threshold, and polarity.
 
@@ -133,16 +133,21 @@ If an unrecognised command is received, the sensor responds with `bd_pressure: u
 |---|---|
 | `e;` | Switch to **endstop/probe mode** (default on boot). The sensor monitors the strain gauge and drives the Z probe output pin. |
 | `c;` | Switch to **PA sampling mode**. Arms the ADC for continuous PA scoring — resets all ADC buffers and pa.lib state on entry. Used by `pa_calibrate.g`. |
+
 ### Query commands
 
 | Command | Response | Description |
 |---|---|---|
-| `v;` | `M118 P0 S"bd_pressure-rrf-v2.17"` | Firmware version string, formatted as an RRF console message. |
+| `v;` | console message | Firmware version string, formatted as an RRF console message. |
+| `ver;` | ASCII string + `\n` | Firmware version string returned directly over UART (e.g. `bd_pressure-rrf-v2.20`). Read with `M261.2 B32`. Used by `pa_calibrate.g` to log the sensor version. |
+| `mode;` | ASCII string + `\n` | Current operating mode: `pa` or `endstop`. Read with `M261.2 B16`. Used by `pa_calibrate.g` to confirm the sensor is in the correct mode before logging. |
 | `s;` | M291 popup | Full sensor status popup: mode, threshold, invert, version, baud, logging, ADC output state, and current baseline value. |
 | `q;` | console message | Threshold value as a human-readable console message. |
 | `Q;` | single raw byte | Threshold value as a single raw binary byte. Used by `bd_set_threshold.g` via `M261.2`. |
 | `z;` | console message | Current baseline (`normal_z`) value. Useful for confirming the sensor has established a valid baseline after startup. |
-| `score;` | single raw byte (0–255) | Latest pa.lib score from the most recent extrusion segment. **Only valid after `c;` has been sent and at least one move has completed.** Lower value = better PA compensation. Returns `0x00` if no result is available yet. Used by `pa_calibrate.g` via `M261.2`. |
+| `score;` | single raw byte (0–255) | Latest pa.lib `res` score from the most recent extrusion segment. **Only valid after `c;` has been sent and at least one move has completed.** Lower value = better PA compensation. Returns `0x00` if no result is available yet. |
+| `pdata;` | 5 raw bytes | All 5 pa.lib metrics as binary bytes in Klipper field order: `res, lk, rk, Hk, Ha`. Read with `M261.2 B5`. Returns all zeros if no result is available yet. Used by `pa_calibrate.g` — produces the same values as the Klipper `R:` output. |
+| `rdata;` | ASCII string | Last result as a full `R:res,lk,rk,Hk,Ha\n` string — the exact format the developer's Klipper plugin reads. Returns `R:0,0,0,0,0\n` if no result is available yet. |
 
 ### Baud rate commands
 
@@ -192,63 +197,83 @@ A menu will appear to select the desired rate. The macro switches both the senso
 
 ## PA calibration
 
-### How it works (RRF-controlled mode)
+### How it works
 
-`pa_calibrate.g` uses the **RRF-controlled approach** introduced in firmware v2.17:
+`pa_calibrate.g` calibrates PA entirely **in the air** — no printing on the bed is required.
+The nozzle is raised to a safe Z height and moves along the X axis while extruding a
+slow→fast→slow sequence for each PA value.  The XY velocity creates the pressure transient;
+the bd_pressure strain gauge measures the back-pressure in the hotend during each move and
+pa.lib scores the result.
 
-1. RRF heats the nozzle, homes, and positions the toolhead
-2. RRF switches the sensor to device mode (`M575 S7`) so scores can be read back with `M261.2`
-3. RRF sends `c;` to arm the sensor in PA sampling mode — the sensor resets its ADC buffers and starts continuously sampling
-4. RRF does a prime move + 4 s dwell to let the sensor stabilise
-5. For each PA value in the sweep:
+This matches the Klipper reference implementation exactly. The 5 pa.lib metrics returned
+(`res, lk, rk, Hk, Ha`) are in the same field order as the Klipper `R:` output, so logs
+can be shared directly with the developer for comparison.
+
+1. RRF reads the bd_pressure firmware version (`ver;`) for the log header
+2. RRF homes all axes if not already homed
+3. RRF heats the nozzle to the configured temperature
+4. RRF raises to the configured Z height and primes the nozzle across the full line length
+5. RRF switches the sensor to device mode (`M575 S7`) and sends `c;` to arm PA sampling
+6. RRF queries `mode;` to confirm the sensor is in PA mode and writes it to the log header
+7. For each PA value in the sweep:
    - RRF sets the PA value: `M572 D<e> S<pa>`
-   - RRF executes the calibration line: slow → fast → slow extrusion segment
-   - RRF waits for moves to complete: `M400`
-   - RRF sends `score;` to the sensor and reads back one byte with `M261.2`
-   - The score (0–255, lower = better) is stored in a vector
-6. RRF finds the PA value with the lowest score, skipping the first quarter of samples as warm-up
-7. RRF applies the result with `M572`, saves it to `/sys/pa_result.g`, and shows a DWC popup
-8. RRF sends `e;` to return the sensor to endstop/probe mode and restores raw serial mode (`M575 S2`)
+   - RRF moves X slow→fast→slow along a 60 mm line at fixed Y while extruding
+   - RRF waits for moves to complete: `M400`, then dwells 200 ms
+   - RRF sends `pdata;` and reads back 5 bytes with `M261.2 B5`: `res, lk, rk, Hk, Ha`
+   - All 5 values are appended to `/sys/pa_calibrate_log.txt`
+8. RRF finds the lowest `res` value, skipping the first 5 samples as warm-up
+9. RRF applies the result with `M572`, saves it to `/sys/pa_result.g`, and shows a DWC popup
+10. RRF sends `e;` to return the sensor to endstop/probe mode and restores raw serial mode (`M575 S2`)
 
-> **Why RRF controls the movement:** This approach is more reliable than a sensor-driven
-> approach — there is no fixed timeout, and movement parameters (speeds, PA values, extruder
-> index) are set directly in the macro where they are easy to edit.
+### Log file format
+
+Each run writes `/sys/pa_calibrate_log.txt` with a `#` comment header followed by CSV data:
+
+```
+# bd_pressure PA calibration
+# date=2026-05-10T12:34:56
+# rrf_version=3.6.0
+# bd_version=bd_pressure-rrf-v2.20
+# mode=pa
+# nozzle_temp=210 pa_start=0.0 pa_step=0.002 steps=50
+iter,pa,res,lk,rk,Hk,Ha
+0,0.0000,18,6,11,173,206
+1,0.0020,21,9,10,217,244
+...
+```
+
+The `mode=` field is read live from the sensor after arming — if it does not read `pa` the
+sensor did not enter PA mode correctly and the calibration should be aborted.
+
+The log can be analysed with:
+- **DWC plugin** — install `BdPressurePA-x.x.x.zip` via Settings → Plugins. A PA Calibration
+  tab appears under Plugins, showing all 5 metrics as charts with the best PA highlighted.
+  Use **Load from Duet** to fetch the log directly from the Duet SD card, or drag-drop a
+  local copy. The metadata header is displayed as coloured chips (date, RRF version,
+  bd_pressure version, mode, nozzle temp, PA sweep parameters).
+- **Python plotter** — run `python tools/pa_log_plot.py /path/to/pa_calibrate_log.txt`.
+  Requires `matplotlib` (`pip install matplotlib`).
 
 ### Calibration macro parameters
 
 Edit these variables at the top of `pa_calibrate.g`:
 
 ```gcode
-var tool          = 0        ; tool number (T0, T1, etc.)
-var extruder      = 0        ; extruder index for M572
-var nozzle_temp   = 210      ; °C nozzle temperature
-var bed_temp      = 0        ; °C bed temperature (0 = skip bed heating)
-var high_speed    = 10800    ; mm/min fast extrusion segment
-var low_speed     = 3000     ; mm/min slow extrusion segments
-var travel_speed  = 24000    ; mm/min travel between lines
-var pa_start      = 0.0      ; starting PA value
-var pa_step       = 0.002    ; PA increment per iteration
-var steps         = 50       ; number of iterations
-var home_first    = true     ; true = G28 before calibration
+var tool         = 0       ; tool number (T0, T1, etc.)
+var extruder     = 0       ; extruder index for M572
+var nozzle_temp  = 210     ; °C nozzle print temperature
+var pa_start     = 0.0     ; starting PA value
+var pa_step      = 0.002   ; PA increment per iteration
+var steps        = 50      ; number of iterations
 
-; Calibration pattern geometry
-var x_start       = 78.0     ; line start X
-var x_mid_l       = 98.0     ; slow/fast transition X (left)
-var x_mid_r       = 138.0    ; fast/slow transition X (right)
-var x_end         = 158.0    ; line end X
-var y_base        = 38.75    ; Y of first line
-var y_step        = 3.5      ; Y spacing between lines
+; Speeds — match your typical print speeds
+var low_speed    = 1020    ; mm/min slow segments (outer wall)
+var high_speed   = 10740   ; mm/min fast segment (infill / fast perimeter)
+var travel_speed = 18000   ; mm/min travel between lines
+
+; Z height — raised clear of bed, nozzle not touching surface
+var z_height     = 50      ; mm
 ```
-
-### Speed recommendations
-
-Speeds should reflect the speeds you actually print at — PA is speed-dependent.
-
-| Print style | `high_speed` | `low_speed` | `travel_speed` |
-|---|---|---|---|
-| Slow / draft | 6000 | 1800 | 18000 |
-| Standard | 10800 | 3000 | 24000 |
-| Fast / input shaping | 18000 | 4800 | 36000 |
 
 ### PA step / range recommendations
 
@@ -265,7 +290,7 @@ When calibration completes, the result is delivered three ways:
 
 **1. DWC console message**
 ```
-bd_pressure: calibration complete. Best PA = 0.0420 (score 12, step 21)
+bd_pressure: calibration complete. Best PA = 0.0420 (res=12, step 21)
 ```
 
 **2. DWC popup dialog**
@@ -276,6 +301,8 @@ Best Pressure Advance: 0.0420
 
 Add to config.g:
 M572 D0 S0.0420
+
+Full log: /sys/pa_calibrate_log.txt
 ```
 
 **3. SD card file `/sys/pa_result.g`**
@@ -357,7 +384,7 @@ The project file is at [firmware_src/MDK-ARM/STM32C011F6U6.uvprojx](../firmware_
 
 **After build:** the post-build script `firmware_src/MDK-ARM/post_build.bat` automatically
 copies the compiled hex to `firmware_src/release_hex/` with the version number in the
-filename (e.g. `bd_pressure-rrf-v2.17.hex`).
+filename (e.g. `bd_pressure-rrf-v2.20.hex`).
 
 **Flashing:**
 See [firmware_src/release_hex/README.md](../firmware_src/release_hex/README.md) for
@@ -371,8 +398,9 @@ the STM32CubeProgrammer flashing procedure (boot button + UART).
 |---|---|---|
 | Macros run but nothing appears in DWC console | `M575 P1 S2 B{global.bd_baud}` missing from `config.g`, or wrong port number in `global.bd_port` | Add the M575 line and confirm `global.bd_port` matches the physical wiring |
 | Console shows raw hex bytes instead of text | Port in device mode (`S7`) was not restored to raw mode (`S2`) after a failed calibration | Send `M575 P{global.bd_port} S2 B{global.bd_baud}` from DWC console, then run `bd_reboot.g` |
-| Calibration starts but all scores are 0 | `c;` was not sent before the move loop, or moves are too fast for ADC to capture | Confirm `c;` is acknowledged in the console, and ensure each line takes at least 500 ms |
-| `score;` always returns 0 | pa.lib has not produced a result yet — `pa_list` has not incremented | Increase move time (reduce speeds or increase line length) so the ADC captures a full sample window |
+| Calibration starts but all values are 0 | `c;` was not sent before the move loop, or moves are too fast for ADC to capture | Confirm `c;` is acknowledged in the console, and ensure enough filament is extruded per cycle |
+| `pdata;` always returns all zeros | pa.lib has not produced a result yet — `pa_list` has not incremented | Increase extrusion amounts so the ADC captures a full sample window |
+| Log shows `mode=endstop` instead of `mode=pa` | `c;` arm command did not take effect | Check UART is in device mode (S7) before sending `c;` — the macro handles this automatically |
 | Wrong PA value applied | Speed parameters don't match actual print speeds | Re-run with `high_speed`/`low_speed` matching your outer wall and travel speeds |
 | Probe not triggering | Threshold too high | Run `bd_set_threshold.g` and lower the value |
 | Probe false-triggers during travel | Threshold too low | Run `bd_set_threshold.g` and raise the value |

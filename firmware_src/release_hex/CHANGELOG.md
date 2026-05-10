@@ -1,5 +1,59 @@
 # bd_pressure Firmware Changelog
 
+## v2.20 — bd_pressure-rrf-v2.20 (2026-05-10)
+
+**New sensor commands**
+- `mode;` — returns current operating mode as `pa\n` or `endstop\n` over UART, readable with `M261.2 B16`. Used by `pa_calibrate.g` to confirm the sensor entered PA mode and record it in the log header.
+
+---
+
+## v2.19 — bd_pressure-rrf-v2.19 (2026-05-10)
+
+**New sensor commands**
+- `ver;` — returns firmware version string (`bd_pressure-rrf-v2.19\n`) directly over UART, readable with `M261.2 B32`. Distinct from `v;` which routes to the RRF console. Used by `pa_calibrate.g` to log the sensor version.
+
+**PA calibration log improvements** (`pa_calibrate.g`)
+- Log file now includes a `#` comment header before the CSV data: `date`, `rrf_version`, `bd_version` (from `ver;`), `mode` (from `mode;`), `nozzle_temp`, `pa_start`, `pa_step`, `steps`
+- Older log files without headers are still supported by the plotter and DWC plugin
+
+**DWC plugin** (`BdPressurePA`)
+- Metadata header displayed as coloured chips above the charts: date, RRF version, bd_pressure version, mode (teal = pa, purple = endstop), nozzle temperature, PA sweep parameters
+
+**Python plotter** (`tools/pa_log_plot.py`)
+- Parses `#` header lines and displays them as a subtitle on the figure and as printed metadata in the terminal
+
+---
+
+## v2.18 — bd_pressure-rrf-v2.18 (2026-05-10)
+
+**PA calibration rewrite — matches Klipper reference implementation**
+- Calibration now uses XY moves at raised Z (nozzle clear of bed) rather than E-only stationary extrusion — matches how Klipper's `PA_E` macro works
+- Fixed Y position at bed centre; X-only movement: 15 mm slow → 30 mm fast → 15 mm slow per iteration
+- `e_per_mm = 0.046322` — Klipper reference extrusion ratio (mm filament per mm XY)
+- All 5 pa.lib metrics now logged per iteration: `res, lk, rk, Hk, Ha` — same field order as Klipper `R:` output
+
+**New sensor commands**
+- `pdata;` — returns 5 raw bytes (`res, lk, rk, Hk, Ha`) readable with `M261.2 B5`
+- `rdata;` — returns full `R:res,lk,rk,Hk,Ha\n` ASCII string for direct developer comparison
+
+**`pa.lib` integration**
+- `pa_vals[]` populated from `k_left`, `k_right`, `H_left`, `H_right` globals after `get_low_value()` returns
+- `R:` string formatted using `_u32_to_dec()` (no `snprintf` / stdio dependency)
+- `c;` command now clears `pa_vals` and `pa_rdata_ready` on entry
+
+**GCode macros**
+- All `M118 P2` changed to `M118 P0` (P2 = PanelDue, not visible in DWC console)
+- Homing check: `if !move.axes[0].homed || !move.axes[1].homed || !move.axes[2].homed → G28`
+
+**DWC plugin** (`BdPressurePA`)
+- Initial release of the DWC PA Calibration plugin
+- Load log by drag-drop, file browse, or **Load from Duet** (fetches `/sys/pa_calibrate_log.txt` directly)
+- Three-panel chart: res, lk/rk slopes, Hk/Ha signal quality
+- Best PA highlighted with red dashed line; one-click **Copy M572** button
+- Raw data table in collapsible panel
+
+---
+
 ## v2 — bd_pressure-rrf-v2.hex (2026-04-12)
 
 **RepRapFirmware integration (standalone Duet, no SBC)**
