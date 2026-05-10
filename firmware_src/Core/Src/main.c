@@ -242,6 +242,11 @@ static void config_save(void);
 						const char *ver = FIRMWARE_VERSION "\n";
 						HAL_UART_Transmit(&huart1, (uint8_t *)ver, strlen(ver), 50);
 				}
+				else if(rxData[0]=='m' && rxData[1]=='o' && rxData[2]=='d' && rxData[3]=='e'){ // mode; — return current operating mode
+						/* 'mode;' — transmit current mode as "pa\n" or "endstop\n" so M261.2 can read it back */
+						const char *m = (R_CMD.status_clk == PA_OSR) ? "pa\n" : "endstop\n";
+						HAL_UART_Transmit(&huart1, (uint8_t *)m, strlen(m), 50);
+				}
 				
 				else if(cmd=='c'){ // enter RRF-controlled PA sampling mode
 						/* 'c;' arms the sensor for RRF-controlled PA calibration.

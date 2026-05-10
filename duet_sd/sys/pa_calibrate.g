@@ -101,20 +101,24 @@ M261.2 P{global.bd_port} B32 V"bd_ver"
 M575 P{global.bd_port} S2 B{global.bd_baud}
 G4 P100
 
-echo >"0:/sys/pa_calibrate_log.txt"  {"# bd_pressure PA calibration"}
-echo >>"0:/sys/pa_calibrate_log.txt" {"# date=" ^ {datetime}}
-echo >>"0:/sys/pa_calibrate_log.txt" {"# rrf_version=" ^ boards[0].firmwareVersion}
-echo >>"0:/sys/pa_calibrate_log.txt" {"# bd_version=" ^ var.bd_ver[0]}
-echo >>"0:/sys/pa_calibrate_log.txt" {"# nozzle_temp=" ^ var.nozzle_temp ^ " pa_start=" ^ var.pa_start ^ " pa_step=" ^ var.pa_step ^ " steps=" ^ var.steps}
-echo >>"0:/sys/pa_calibrate_log.txt" "iter,pa,res,lk,rk,Hk,Ha"
-
 ; -----------------------------------------------------------------------
-; Step 5 — Switch sensor to device mode and arm PA sampling
+; Step 5 — Switch sensor to device mode, arm PA sampling, confirm mode
 ; -----------------------------------------------------------------------
 M575 P{global.bd_port} S7 B{global.bd_baud}
 G4 P100
 M260.2 P{global.bd_port} S"c;"
 G4 P500
+M260.2 P{global.bd_port} S"mode;"
+G4 P200
+M261.2 P{global.bd_port} B16 V"bd_mode"
+
+echo >"0:/sys/pa_calibrate_log.txt"  {"# bd_pressure PA calibration"}
+echo >>"0:/sys/pa_calibrate_log.txt" {"# date=" ^ {datetime}}
+echo >>"0:/sys/pa_calibrate_log.txt" {"# rrf_version=" ^ boards[0].firmwareVersion}
+echo >>"0:/sys/pa_calibrate_log.txt" {"# bd_version=" ^ var.bd_ver[0]}
+echo >>"0:/sys/pa_calibrate_log.txt" {"# mode=" ^ var.bd_mode[0]}
+echo >>"0:/sys/pa_calibrate_log.txt" {"# nozzle_temp=" ^ var.nozzle_temp ^ " pa_start=" ^ var.pa_start ^ " pa_step=" ^ var.pa_step ^ " steps=" ^ var.steps}
+echo >>"0:/sys/pa_calibrate_log.txt" "iter,pa,res,lk,rk,Hk,Ha"
 
 ; -----------------------------------------------------------------------
 ; Step 6 — Calibration loop

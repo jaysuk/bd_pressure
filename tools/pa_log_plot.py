@@ -12,7 +12,6 @@ import os
 import csv
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-import numpy as np
 
 
 def load_log(path):
@@ -76,6 +75,7 @@ def plot(meta, rows, logpath):
     if 'date' in meta:        meta_parts.append(meta['date'])
     if 'rrf_version' in meta: meta_parts.append(f"RRF {meta['rrf_version']}")
     if 'bd_version' in meta:  meta_parts.append(meta['bd_version'])
+    if 'mode' in meta:        meta_parts.append(f"mode={meta['mode']}")
     if 'nozzle_temp' in meta: meta_parts.append(f"nozzle {meta['nozzle_temp']}°C")
     if 'pa_start' in meta and 'pa_step' in meta and 'steps' in meta:
         meta_parts.append(f"PA {meta['pa_start']}+{meta['pa_step']}×{meta['steps']}")
