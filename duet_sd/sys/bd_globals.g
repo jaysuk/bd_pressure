@@ -23,3 +23,8 @@ if !exists(global.bd_uart)
 ;   Valid values: 115200, 57600, 38400, 230400
 if !exists(global.bd_baud)
     global bd_baud = 115200
+
+; bd_version — firmware version string
+;   Update this when flashing new firmware so it is recorded in calibration logs.
+if !exists(global.bd_version)
+    global bd_version = "bd_pressure-rrf-v2.20"
