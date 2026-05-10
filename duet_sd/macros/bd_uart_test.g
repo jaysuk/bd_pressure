@@ -1,40 +1,38 @@
 ; bd_uart_test.g
-; Diagnostic macro — tests ver; and mode; UART reads.
+; Diagnostic macro — tests ver; and mode; single-byte UART reads.
 ; Run from DWC macros panel to confirm sensor communication.
-;
-; NOTE: M261.2 always returns raw bytes — the responses below will appear
-; as byte arrays e.g. {98,100,...}. This is expected RRF behaviour.
-; The sensor version is read from global.bd_version instead (set in bd_globals.g).
+; Results appear in the DWC console.
 
 M118 P0 S"bd_uart_test: switching to device mode..."
 M575 P{global.bd_port} S7 B{global.bd_baud}
 G4 P300
 
-; --- ver; — shows raw byte response for diagnostic purposes only ---
-M118 P0 S"bd_uart_test: sending ver; (raw bytes expected)..."
+; --- ver; — single byte, major*100+minor ---
+M118 P0 S"bd_uart_test: sending ver;..."
 M260.2 P{global.bd_port} S"ver;"
-G4 P500
-M261.2 P{global.bd_port} B32 V"bd_ver"
-M118 P0 S{"bd_uart_test: ver; raw response = " ^ var.bd_ver}
-M118 P0 S{"bd_uart_test: version from global = " ^ global.bd_version}
+G4 P300
+M261.2 P{global.bd_port} B1 V"bd_ver_raw"
+var bd_ver_major = floor(var.bd_ver_raw[0] / 100)
+var bd_ver_minor = var.bd_ver_raw[0] % 100
+M118 P0 S{"bd_uart_test: version byte = " ^ var.bd_ver_raw[0] ^ " → v" ^ var.bd_ver_major ^ "." ^ var.bd_ver_minor}
 
-; --- mode; before c; (should be endstop) ---
-M118 P0 S"bd_uart_test: sending mode; (raw bytes expected)..."
+; --- mode; before c; — 0=pa, 1=endstop ---
+M118 P0 S"bd_uart_test: sending mode; (expect 1=endstop)..."
 M260.2 P{global.bd_port} S"mode;"
-G4 P500
-M261.2 P{global.bd_port} B16 V"bd_mode"
-M118 P0 S{"bd_uart_test: mode; raw response = " ^ var.bd_mode}
+G4 P300
+M261.2 P{global.bd_port} B1 V"bd_mode_raw"
+M118 P0 S{"bd_uart_test: mode byte = " ^ var.bd_mode_raw[0] ^ " (" ^ {var.bd_mode_raw[0] == 0 ? "pa" : "endstop"} ^ ")"}
 
-; --- c; then mode; ---
-M118 P0 S"bd_uart_test: sending c; to arm PA mode..."
+; --- c; then mode; — expect 0=pa ---
+M118 P0 S"bd_uart_test: sending c; then mode; (expect 0=pa)..."
 M260.2 P{global.bd_port} S"c;"
 G4 P500
 M260.2 P{global.bd_port} S"mode;"
-G4 P500
-M261.2 P{global.bd_port} B16 V"bd_mode2"
-M118 P0 S{"bd_uart_test: mode; after c; raw response = " ^ var.bd_mode2}
+G4 P300
+M261.2 P{global.bd_port} B1 V"bd_mode2_raw"
+M118 P0 S{"bd_uart_test: mode after c; = " ^ var.bd_mode2_raw[0] ^ " (" ^ {var.bd_mode2_raw[0] == 0 ? "pa ✓" : "endstop ✗ — c; did not take effect"} ^ ")"}
 
-; --- e; restore endstop mode ---
+; --- restore endstop mode ---
 M260.2 P{global.bd_port} S"e;"
 G4 P200
 
