@@ -66,7 +66,7 @@ if !move.axes[0].homed || !move.axes[1].homed || !move.axes[2].homed
 ; -----------------------------------------------------------------------
 T{var.tool}
 M118 P0 S"bd_pressure: heating nozzle..."
-echo >"0:/sys/pa_live_status.json" "{\"state\":\"heating\",\"step\":0,\"steps\":" ^ var.steps ^ ",\"pa\":0}"
+echo >"0:/sys/pa_live_status.json" {"{\"state\":\"heating\",\"step\":0,\"steps\":" ^ var.steps ^ ",\"pa\":0}"}
 M568 P{var.tool} S{var.nozzle_temp} A2
 M116
 
