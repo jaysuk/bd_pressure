@@ -8,6 +8,7 @@ duet_sd/
 ├── sys/                         →  /sys/   on the Duet SD card
 │   ├── bd_globals.g                 Global variables (bd_port, bd_uart, bd_baud) — call from config.g
 │   ├── pa_calibrate.g               Automated PA calibration macro — edit parameters before use
+│   ├── pa_calibrate_live.g          Plugin-driven PA calibration — called by DWC plugin, do not run manually
 │   ├── deployprobe.g                Re-baselines the sensor before each probe tap
 │   ├── retractprobe.g               Empty stub required by RRF when deployprobe.g is present
 │   └── config_example.g             Config snippets — copy relevant lines into your config.g
