@@ -11,6 +11,7 @@
 ;   global.bd_live_pa_step        PA increment per iteration
 ;   global.bd_live_steps          number of iterations
 ;   global.bd_live_warmup_steps   number of extrusion passes at PA=0 before sweep begins
+;   global.bd_live_hotend_preset  hotend category string (custom/short/standard/highflow/bowden)
 ;   global.bd_live_low_speed      slow segment speed mm/min
 ;   global.bd_live_high_speed     fast segment speed mm/min
 ;   global.bd_live_travel_speed   travel speed mm/min
@@ -35,6 +36,7 @@ var pa_start      = global.bd_live_pa_start
 var pa_step       = global.bd_live_pa_step
 var steps         = global.bd_live_steps
 var warmup_steps  = global.bd_live_warmup_steps
+var hotend_preset = global.bd_live_hotend_preset
 var low_speed     = global.bd_live_low_speed
 var high_speed    = global.bd_live_high_speed
 var travel_speed  = global.bd_live_travel_speed
@@ -134,7 +136,7 @@ echo >>"0:/sys/pa_calibrate_log.txt" {"# date=" ^ state.time}
 echo >>"0:/sys/pa_calibrate_log.txt" {"# rrf_version=" ^ boards[0].firmwareVersion}
 echo >>"0:/sys/pa_calibrate_log.txt" {"# bd_version=bd_pressure-rrf-" ^ var.bd_version}
 echo >>"0:/sys/pa_calibrate_log.txt" {"# mode=" ^ var.bd_mode}
-echo >>"0:/sys/pa_calibrate_log.txt" {"# extruder=" ^ var.extruder ^ " nozzle_temp=" ^ var.nozzle_temp ^ " pa_start=" ^ var.pa_start ^ " pa_step=" ^ var.pa_step ^ " steps=" ^ var.steps}
+echo >>"0:/sys/pa_calibrate_log.txt" {"# extruder=" ^ var.extruder ^ " nozzle_temp=" ^ var.nozzle_temp ^ " pa_start=" ^ var.pa_start ^ " pa_step=" ^ var.pa_step ^ " steps=" ^ var.steps ^ " hotend_preset=" ^ var.hotend_preset}
 echo >>"0:/sys/pa_calibrate_log.txt" "iter,pa,res,lk,rk,Hk,Ha"
 
 ; -----------------------------------------------------------------------
