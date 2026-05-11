@@ -88,8 +88,13 @@ contacts the bed. If it doesn't trigger, lower the threshold with
 
 ### Step 7 — Run PA calibration
 
-Edit `pa_calibrate.g` to match your printer speeds and nozzle temperature,
-then run `M98 P"/sys/pa_calibrate.g"`.
+> **Recommended:** use the **BdPressurePA DWC plugin** — it runs calibration directly from
+> the browser with no macro editing required, provides live charts and automatic analysis,
+> and guides you through follow-up sweeps. See the [DWC plugin](#dwc-plugin) section below.
+
+If you prefer to run calibration without the plugin, edit `pa_calibrate.g` to match your
+printer speeds and nozzle temperature, then run `M98 P"/sys/pa_calibrate.g"`.
+See [Calibration macro parameters](#calibration-macro-parameters) for the available settings.
 
 ---
 
@@ -197,6 +202,11 @@ A menu will appear to select the desired rate. The macro switches both the senso
 
 ## PA calibration
 
+> **The DWC plugin is the recommended way to run PA calibration.** It handles parameter
+> setting, live progress, charting, and analysis automatically — no macro editing needed.
+> The `pa_calibrate.g` macro is provided for users who prefer a macro-only workflow or
+> do not have DWC available. Both methods produce the same log file and result.
+
 ### How it works
 
 `pa_calibrate.g` calibrates PA entirely **in the air** — no printing on the bed is required.
@@ -248,11 +258,10 @@ The `mode=` field is read live from the sensor after arming — if it does not r
 sensor did not enter PA mode correctly and the calibration should be aborted.
 
 The log can be analysed with:
-- **DWC plugin** — install `BdPressurePA-x.x.x.zip` via Settings → Plugins. A PA Calibration
-  tab appears under Plugins, showing all 5 metrics as charts with the best PA highlighted.
+- **DWC plugin** *(recommended)* — install `BdPressurePA-1.1.0.zip` via Settings → Plugins.
   Use **Load from Duet** to fetch the log directly from the Duet SD card, or drag-drop a
-  local copy. The metadata header is displayed as coloured chips (date, RRF version,
-  bd_pressure version, mode, nozzle temp, PA sweep parameters).
+  local copy. The plugin shows all 5 metrics as charts, highlights the best PA, provides
+  automatic sweep quality analysis, and suggests follow-up sweep parameters.
 - **Python plotter** — run `python tools/pa_log_plot.py /path/to/pa_calibrate_log.txt`.
   Requires `matplotlib` (`pip install matplotlib`).
 
