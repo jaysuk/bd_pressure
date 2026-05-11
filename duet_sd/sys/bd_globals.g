@@ -24,3 +24,29 @@ if !exists(global.bd_uart)
 if !exists(global.bd_baud)
     global bd_baud = 115200
 
+; -----------------------------------------------------------------------
+; Live calibration parameters — set by the DWC plugin before calling
+; pa_calibrate_live.g.  Declared here so the plugin can always use
+; `set global.bd_live_*` without needing to create them first.
+; -----------------------------------------------------------------------
+if !exists(global.bd_live_tool)
+    global bd_live_tool = 0
+if !exists(global.bd_live_extruder)
+    global bd_live_extruder = 0
+if !exists(global.bd_live_nozzle_temp)
+    global bd_live_nozzle_temp = 210
+if !exists(global.bd_live_pa_start)
+    global bd_live_pa_start = 0.0
+if !exists(global.bd_live_pa_step)
+    global bd_live_pa_step = 0.002
+if !exists(global.bd_live_steps)
+    global bd_live_steps = 50
+if !exists(global.bd_live_low_speed)
+    global bd_live_low_speed = 1020
+if !exists(global.bd_live_high_speed)
+    global bd_live_high_speed = 10740
+if !exists(global.bd_live_travel_speed)
+    global bd_live_travel_speed = 18000
+if !exists(global.bd_live_z_height)
+    global bd_live_z_height = 50
+
