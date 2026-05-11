@@ -66,7 +66,7 @@ if !move.axes[0].homed || !move.axes[1].homed || !move.axes[2].homed
 ; -----------------------------------------------------------------------
 T{var.tool}
 M118 P0 S"bd_pressure: heating nozzle..."
-echo >"0:/sys/pa_live_status.json" {"{\"state\":\"heating\",\"step\":0,\"steps\":" ^ var.steps ^ ",\"pa\":0}"}
+echo >"0:/sys/pa_live_status.txt" {"state=heating steps=" ^ var.steps}
 M568 P{var.tool} S{var.nozzle_temp} A2
 M116
 
@@ -76,7 +76,7 @@ M116
 G90
 M83
 
-echo >"0:/sys/pa_live_status.json" {"{\"state\":\"priming\",\"step\":0,\"steps\":" ^ var.steps ^ ",\"pa\":0}"}
+echo >"0:/sys/pa_live_status.txt" {"state=priming steps=" ^ var.steps}
 M118 P0 S{"bd_pressure: PA calibration — " ^ var.steps ^ " steps, X" ^ var.x_start ^ "–X" ^ var.x_end ^ " Y" ^ var.y_pos}
 
 G1 Z{var.z_height} F600
@@ -129,7 +129,7 @@ while iterations < var.steps
     set var.pa = var.pa_start + iterations * var.pa_step
     M572 D{var.extruder} S{var.pa}
 
-    echo >"0:/sys/pa_live_status.json" {"{\"state\":\"running\",\"step\":" ^ (iterations+1) ^ ",\"steps\":" ^ var.steps ^ ",\"pa\":" ^ var.pa ^ "}"}
+    echo >"0:/sys/pa_live_status.txt" {"state=running step=" ^ (iterations+1) ^ " steps=" ^ var.steps ^ " pa=" ^ var.pa}
     M118 P0 S{"bd_pressure: step " ^ (iterations + 1) ^ " of " ^ var.steps ^ " — PA " ^ var.pa}
 
     G1 X{var.x_start} Y{var.y_pos} F{var.travel_speed}
@@ -172,7 +172,7 @@ M572 D{var.extruder} S{var.best_pa}
 echo >"0:/sys/pa_result.g" {"M572 D" ^ var.extruder ^ " S" ^ var.best_pa}
 M575 P{global.bd_port} S2 B{global.bd_baud}
 
-echo >"0:/sys/pa_live_status.json" {"{\"state\":\"done\",\"step\":" ^ var.steps ^ ",\"steps\":" ^ var.steps ^ ",\"pa\":" ^ var.best_pa ^ ",\"best_pa\":" ^ var.best_pa ^ ",\"best_res\":" ^ var.best_score ^ "}"}
+echo >"0:/sys/pa_live_status.txt" {"state=done steps=" ^ var.steps ^ " pa=" ^ var.best_pa ^ " best_pa=" ^ var.best_pa ^ " best_res=" ^ var.best_score}
 
 M118 P0 S{"bd_pressure: calibration complete. Best PA = " ^ var.best_pa ^ " (res=" ^ var.best_score ^ ", step " ^ var.best_i ^ ")"}
 M291 P{"<b>Calibration complete!</b><br><b>Best Pressure Advance:</b> " ^ var.best_pa ^ "<br><br><b>Add to config.g:</b><br>M572 D" ^ var.extruder ^ " S" ^ var.best_pa ^ "<br><br>Full log: /sys/pa_calibrate_log.txt"} R"bd_pressure PA Result" S2
