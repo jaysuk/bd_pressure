@@ -4,16 +4,17 @@
 ; The plugin sets parameters via global variables before calling this macro.
 ;
 ; Parameters set by plugin (all must exist before this macro runs):
-;   global.bd_live_tool         tool number
-;   global.bd_live_extruder     extruder index for M572
-;   global.bd_live_nozzle_temp  nozzle temperature °C
-;   global.bd_live_pa_start     PA sweep start value
-;   global.bd_live_pa_step      PA increment per iteration
-;   global.bd_live_steps        number of iterations
-;   global.bd_live_low_speed    slow segment speed mm/min
-;   global.bd_live_high_speed   fast segment speed mm/min
-;   global.bd_live_travel_speed travel speed mm/min
-;   global.bd_live_z_height     Z height mm
+;   global.bd_live_tool           tool number
+;   global.bd_live_extruder       extruder index for M572
+;   global.bd_live_nozzle_temp    nozzle temperature °C
+;   global.bd_live_pa_start       PA sweep start value
+;   global.bd_live_pa_step        PA increment per iteration
+;   global.bd_live_steps          number of iterations
+;   global.bd_live_warmup_steps   number of extrusion passes at PA=0 before sweep begins
+;   global.bd_live_low_speed      slow segment speed mm/min
+;   global.bd_live_high_speed     fast segment speed mm/min
+;   global.bd_live_travel_speed   travel speed mm/min
+;   global.bd_live_z_height       Z height mm
 
 ; -----------------------------------------------------------------------
 ; Guard
@@ -27,16 +28,17 @@ if !exists(global.bd_live_tool)
 ; -----------------------------------------------------------------------
 ; Parameters from plugin globals
 ; -----------------------------------------------------------------------
-var tool         = global.bd_live_tool
-var extruder     = global.bd_live_extruder
-var nozzle_temp  = global.bd_live_nozzle_temp
-var pa_start     = global.bd_live_pa_start
-var pa_step      = global.bd_live_pa_step
-var steps        = global.bd_live_steps
-var low_speed    = global.bd_live_low_speed
-var high_speed   = global.bd_live_high_speed
-var travel_speed = global.bd_live_travel_speed
-var z_height     = global.bd_live_z_height
+var tool          = global.bd_live_tool
+var extruder      = global.bd_live_extruder
+var nozzle_temp   = global.bd_live_nozzle_temp
+var pa_start      = global.bd_live_pa_start
+var pa_step       = global.bd_live_pa_step
+var steps         = global.bd_live_steps
+var warmup_steps  = global.bd_live_warmup_steps
+var low_speed     = global.bd_live_low_speed
+var high_speed    = global.bd_live_high_speed
+var travel_speed  = global.bd_live_travel_speed
+var z_height      = global.bd_live_z_height
 
 ; -----------------------------------------------------------------------
 ; Line geometry
@@ -85,6 +87,21 @@ G1 F{var.high_speed}
 G1 X{var.x_end} Y{var.y_pos} E{var.e_prime}
 M400
 G4 P4000
+
+; -----------------------------------------------------------------------
+; Step 3b — Warm-up passes at PA=0 (sensor + hotend stabilisation)
+; -----------------------------------------------------------------------
+if var.warmup_steps > 0
+    M572 D{var.extruder} S0
+    echo >"0:/sys/pa_live_status.txt" {"state=warmup steps=" ^ var.steps ^ " warmup=" ^ var.warmup_steps}
+    M118 P0 S{"bd_pressure: warm-up — " ^ var.warmup_steps ^ " passes at PA=0"}
+    while iterations < var.warmup_steps
+        G1 X{var.x_start} Y{var.y_pos} F{var.travel_speed}
+        G1 X{var.x_mid_l} Y{var.y_pos} F{var.low_speed}  E{var.e_slow}
+        G1 X{var.x_mid_r} Y{var.y_pos} F{var.high_speed} E{var.e_fast}
+        G1 X{var.x_end}   Y{var.y_pos} F{var.low_speed}  E{var.e_slow}
+        M400
+        G4 P200
 
 ; -----------------------------------------------------------------------
 ; Step 4 — Device mode, read version and mode, write log header
@@ -152,7 +169,7 @@ while iterations < var.steps
 ; -----------------------------------------------------------------------
 ; Step 6 — Find best PA
 ; -----------------------------------------------------------------------
-var skip = 8
+var skip = 2
 if var.skip >= var.steps
     set var.skip = 1
 

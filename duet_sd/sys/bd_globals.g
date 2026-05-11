@@ -41,6 +41,8 @@ if !exists(global.bd_live_pa_step)
     global bd_live_pa_step = 0.002
 if !exists(global.bd_live_steps)
     global bd_live_steps = 50
+if !exists(global.bd_live_warmup_steps)
+    global bd_live_warmup_steps = 5
 if !exists(global.bd_live_low_speed)
     global bd_live_low_speed = 1020
 if !exists(global.bd_live_high_speed)
