@@ -221,7 +221,7 @@ can be shared directly with the developer for comparison.
    - RRF waits for moves to complete: `M400`, then dwells 200 ms
    - RRF sends `pdata;` and reads back 5 bytes with `M261.2 B5`: `res, lk, rk, Hk, Ha`
    - All 5 values are appended to `/sys/pa_calibrate_log.txt`
-8. RRF finds the lowest `res` value, skipping the first 5 samples as warm-up
+8. RRF finds the best PA using a composite score (`res + 0.5 × │lk − rk│`), skipping the first 2 iterations as a safety margin (real warm-up is done by the configurable pre-sweep passes at PA=0)
 9. RRF applies the result with `M572`, saves it to `/sys/pa_result.g`, and shows a DWC popup
 10. RRF sends `e;` to return the sensor to endstop/probe mode and restores raw serial mode (`M575 S2`)
 
@@ -235,12 +235,14 @@ Each run writes `/sys/pa_calibrate_log.txt` with a `#` comment header followed b
 # rrf_version=3.6.2+1
 # bd_version=bd_pressure-rrf-v2.24
 # mode=pa
-# extruder=0 nozzle_temp=210 pa_start=0.0 pa_step=0.002 steps=50
+# extruder=0 nozzle_temp=210 pa_start=0.0 pa_step=0.005 steps=50 hotend_preset=standard
 iter,pa,res,lk,rk,Hk,Ha
 0,0.0000,18,6,11,173,206
-1,0.0020,21,9,10,217,244
+1,0.0050,21,9,10,217,244
 ...
 ```
+
+The `hotend_preset=` field is written when using the DWC plugin live calibration. It is used by the plugin's analysis to check whether the result falls within the expected PA range for the selected hotend type, and is shown as a metadata chip in the Log Viewer.
 
 The `mode=` field is read live from the sensor after arming — if it does not read `pa` the
 sensor did not enter PA mode correctly and the calibration should be aborted.
@@ -318,19 +320,44 @@ to load it automatically on every boot.
 
 ## DWC plugin
 
-The **BdPressurePA** plugin visualises PA calibration logs directly inside DWC — no external tools needed.
+The **BdPressurePA** plugin provides a live PA calibration workflow and log viewer directly inside DWC — no external tools needed.
 
 ### Installation
 
-1. Download `BdPressurePA-1.0.0.zip` from the [plugin repository](https://github.com/jaysuk/bd_pressure_dwc_plugin)
+1. Download `BdPressurePA-1.1.0.zip` from the [plugin repository](https://github.com/jaysuk/bd_pressure_dwc_plugin)
 2. In DWC go to **Settings → Plugins → External plugins → Upload plugin**
 3. Select the zip file and click **Install**
 4. A **PA Calibration** tab will appear under the **Plugins** section in the left sidebar
 
-### Loading a log
+### Live calibration (recommended)
+
+The plugin can run a full PA calibration directly from DWC without editing any macro files:
+
+1. Open the **PA Calibration** plugin tab
+2. Select your **hotend type** from the dropdown — this sets the PA sweep range automatically (see table below) and is required before the Start button becomes active
+3. Set your nozzle temperature and adjust any other parameters if needed
+4. Press **Start** — the plugin sets all parameters as Duet global variables and calls `pa_calibrate_live.g`
+5. Progress is shown in the left panel (heating → warm-up → running → done)
+6. When complete, the Log Viewer tab opens automatically with the results and analysis
+
+### Hotend type presets
+
+Select the category that best matches your hotend. This sets the PA sweep range and step size, and enables range checking in the analysis — if the result falls outside what is typical for your hotend type, the analysis panel will flag it.
+
+| Hotend type | PA sweep range | Step | Examples |
+|---|---|---|---|
+| **Short melt zone** | 0 – 0.10 | 0.002 | E3D Revo (all variants), Slice Mosquito, Phaetus Dragon HF |
+| **Standard** | 0 – 0.25 | 0.005 | E3D V6, Phaetus Dragon ST, Rapido HF (v1/v2), Dragonfly, Bambu X1/P1/A1, Creality Spider |
+| **High flow / long melt zone** | 0 – 0.25 | 0.005 | E3D Volcano, Phaetus Rapido UHF, Dragon UHF, VzBot Goliath (50 mm melt zone), Slice Mosquito Magnum+ |
+| **Bowden** | 0.3 – 1.5 | 0.02 | Any hotend with a Bowden tube — tube length matters more than hotend type |
+| **Custom** | — | — | Manual entry, no range checking |
+
+If you always use the same hotend you can set a persistent default in `bd_globals.g` so the plugin pre-selects it on every boot — see the commented-out block in `bd_globals.g`.
+
+### Loading a log (Log Viewer tab)
 
 The plugin can load calibration data three ways:
-- **Load from Duet** — fetches `/sys/pa_calibrate_log.txt` directly from the Duet SD card (requires a completed calibration run)
+- **Load from Duet** — fetches `/sys/pa_calibrate_log.txt` directly from the Duet SD card
 - **Drag and drop** — drag a log file onto the upload zone
 - **Browse** — click the zone to open a file picker
 
@@ -338,26 +365,35 @@ The plugin can load calibration data three ways:
 
 | Panel | Content |
 |---|---|
-| Metadata chips | Date, RRF version, bd_pressure version, mode (teal=pa / purple=endstop), nozzle temperature, extruder index, PA sweep parameters |
-| Best PA | Highlighted in green with a one-click **Copy M572** button — uses the correct extruder index from the log |
-| Pressure score (res) | Blue line chart with red dashed best-PA line and green shaded good zone (within 20% of best) |
+| Metadata chips | Date, RRF version, bd_pressure version, mode, nozzle temperature, PA sweep parameters, hotend preset (if set) |
+| Best PA | Highlighted in green — selected by composite score (`res + 0.5 × │lk − rk│`) to favour symmetric results. One-click **Copy M572** button. |
+| Pressure score (res) | Blue line chart with red dashed best-PA line and green shaded good zone (within 20% of composite best) |
 | Slopes (lk / rk) | Left and right pressure slope per iteration |
-| Signal quality (Hk / Ha) | Peak heights per iteration — useful for checking sensor signal strength |
-| Analysis panel | Automatic assessment of sweep quality: noise level (CV%), minimum position relative to sweep edges, curve flatness, lk/rk asymmetry |
-| Suggested next sweep | Ready-to-paste `pa_calibrate.g` variable block — either a zoom-in around the best value or a range shift if the minimum is near an edge |
-| Raw data table | All 50 (or N) rows — best iteration highlighted in green |
+| Signal quality (Hk / Ha) | Peak heights per iteration — should be consistent and above ~150 |
+| Analysis panel | Noise assessment (CV%), range check, minimum clarity, slope asymmetry, hotend range check, suggested next action |
+| Suggested next sweep | **Load into Live Run** button pre-fills the parameters for the recommended follow-up sweep |
+| Raw data table | All iterations — best highlighted in green |
 
-All analysis runs entirely in the browser on the device loading DWC — nothing is sent to the Duet board.
+All analysis runs entirely in the browser — nothing extra is sent to the Duet board.
 
 ### Interpreting the results
 
-**res (lower = better)** — the primary score. Look for a clear V-shaped minimum. A flat or noisy curve means either:
-- The PA range is too wide — use the suggested zoom-in parameters and run again
-- There is variability in the extrusion (temperature, vibration) — try a second run to confirm
+**res (lower = better)** — the primary score. Look for a clear minimum. A flat or noisy curve (high CV%) means the data is not resolving the optimum cleanly — repeat the sweep at the same settings rather than zooming in with a finer step, which makes noise worse.
 
-**lk / rk (slopes)** — should be small and close together at the optimum PA value. A persistent asymmetry (one consistently higher than the other) can indicate a temperature or flow asymmetry in the hotend.
+**lk / rk (slopes)** — should be small and roughly equal at the optimum PA value. A persistent asymmetry across the whole sweep is a hotend geometry characteristic (common with short melt-zone / high-flow designs) rather than a calibration problem.
 
-**Hk / Ha (peak heights)** — should be consistent and high (200+). Low or erratic values suggest the sensor is not receiving a strong pressure signal — check wiring, threshold setting, and extrusion amounts.
+**Hk / Ha (peak heights)** — should be consistent and high (150+). Low or erratic values suggest the sensor is not receiving a strong signal — check wiring, threshold setting, and that enough filament is being extruded.
+
+### Analysis panel messages
+
+| Message | Action |
+|---|---|
+| High noise (CV > 40%) | Repeat the sweep — do not zoom in with a finer step |
+| No clear minimum | Repeat at the same settings for a consensus result |
+| Best PA near sweep edge | Shift the range in the indicated direction first |
+| Persistent slope asymmetry | Hotend geometry characteristic — no action needed |
+| Best PA outside expected range for hotend type | Check hotend selection, or widen the sweep to confirm |
+| Step already fine and noisy | Run a coarser confirmation sweep instead |
 
 ---
 

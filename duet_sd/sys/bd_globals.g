@@ -30,15 +30,16 @@ if !exists(global.bd_baud)
 ; `set global.bd_live_*` without needing to create them first.
 ;
 ; OPTIONAL USER CONFIGURATION:
-; Uncomment and edit the line below to pre-select your hotend type so the
-; plugin remembers it across sessions without needing to select it each time.
+; Uncomment the two lines below and set your hotend type to pre-select it in
+; the plugin on every boot, so you don't have to pick it each session.
 ; Valid values: "short"    — E3D Revo, Slice Mosquito, Dragon HF
 ;               "standard" — E3D V6, Dragon ST, Rapido HF, Dragonfly, Bambu, Spider
 ;               "highflow" — E3D Volcano, Rapido UHF, Dragon UHF, Goliath, Mosquito Magnum+
 ;               "bowden"   — any hotend with a Bowden tube
 ;               "custom"   — manual parameter entry, no range checking
 ;
-; global bd_live_hotend_preset = "standard"
+; if !exists(global.bd_live_hotend_preset)
+;     global bd_live_hotend_preset = "standard"
 ;
 ; -----------------------------------------------------------------------
 if !exists(global.bd_live_tool)
