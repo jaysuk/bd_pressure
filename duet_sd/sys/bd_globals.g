@@ -28,6 +28,18 @@ if !exists(global.bd_baud)
 ; Live calibration parameters — set by the DWC plugin before calling
 ; pa_calibrate_live.g.  Declared here so the plugin can always use
 ; `set global.bd_live_*` without needing to create them first.
+;
+; OPTIONAL USER CONFIGURATION:
+; Uncomment and edit the line below to pre-select your hotend type so the
+; plugin remembers it across sessions without needing to select it each time.
+; Valid values: "short"    — E3D Revo, Slice Mosquito, Dragon HF
+;               "standard" — E3D V6, Dragon ST, Rapido HF, Dragonfly, Bambu, Spider
+;               "highflow" — E3D Volcano, Rapido UHF, Dragon UHF, Goliath, Mosquito Magnum+
+;               "bowden"   — any hotend with a Bowden tube
+;               "custom"   — manual parameter entry, no range checking
+;
+; global bd_live_hotend_preset = "standard"
+;
 ; -----------------------------------------------------------------------
 if !exists(global.bd_live_tool)
     global bd_live_tool = 0
@@ -44,7 +56,7 @@ if !exists(global.bd_live_steps)
 if !exists(global.bd_live_warmup_steps)
     global bd_live_warmup_steps = 5
 if !exists(global.bd_live_hotend_preset)
-    global bd_live_hotend_preset = "custom"
+    global bd_live_hotend_preset = "unknown"
 if !exists(global.bd_live_low_speed)
     global bd_live_low_speed = 1020
 if !exists(global.bd_live_high_speed)
