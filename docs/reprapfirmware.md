@@ -322,7 +322,7 @@ The **BdPressurePA** plugin visualises PA calibration logs directly inside DWC �
 
 ### Installation
 
-1. Download `BdPressurePA-1.0.0.zip` from the [plugin repository](https://github.com/placeholder/bd-pressure-dwc-plugin) *(URL to be confirmed)*
+1. Download `BdPressurePA-1.0.0.zip` from the [plugin repository](https://github.com/jaysuk/bd_pressure_dwc_plugin)
 2. In DWC go to **Settings → Plugins → External plugins → Upload plugin**
 3. Select the zip file and click **Install**
 4. A **PA Calibration** tab will appear under the **Plugins** section in the left sidebar

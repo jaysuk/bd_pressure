@@ -100,7 +100,7 @@ A companion DWC plugin (**BdPressurePA**) visualises PA calibration logs directl
 - Suggested next sweep parameters (zoom-in or range shift) with one-click copy
 - Light and dark mode support
 
-**Plugin repository:** *(URL to be added)*
+**Plugin repository:** https://github.com/jaysuk/bd_pressure_dwc_plugin
 
 Install via DWC → Settings → Plugins → Upload plugin zip.
 
