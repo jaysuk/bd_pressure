@@ -1,6 +1,6 @@
 # bd_pressure Firmware Changelog
 
-## v2.24 — bd_pressure-rrf-v2.24 (2026-05-10)
+## v2.24 — bd_pressure-rrf-v2.24 (2026-05-11)
 
 **Bug fix: `mode;` command intercepted by `e;` handler**
 - `mode;` ends with the character `e`, so `cmd = rxData[j-1]` was `'e'` — causing the single-char `e;` handler to fire first, switching the sensor back to endstop mode and returning ASCII 77 (`M`) instead of the mode byte
@@ -9,6 +9,11 @@
 **Bug fix: version minor displayed as full byte value**
 - `var.bd_ver_minor = var.bd_ver_raw[0] % 100` used `%` which RRF GCode does not support as modulo
 - Fixed to `var.bd_ver_raw[0] - var.bd_ver_major * 100` in both `pa_calibrate.g` and `bd_uart_test.g`
+
+**GCode macro fixes (`pa_calibrate.g`)**
+- `pa_result.g` now written with literal values using `echo >` instead of `M28`/`M29` with variable references — the saved file is now valid standalone GCode
+- Added globals guard at the top: aborts with a clear message if `M98 P"/sys/bd_globals.g"` has not been run
+- `extruder` index now written to log header so the DWC plugin can use the correct `D` parameter in the Copy M572 button
 
 ---
 

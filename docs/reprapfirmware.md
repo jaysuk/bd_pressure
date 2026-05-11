@@ -31,10 +31,10 @@ See [docs/pi_zero_bridge.md](pi_zero_bridge.md) for full setup instructions.
 ### Step 1 — Flash the firmware
 
 Put the STM32 into bootloader mode (hold BOOT0 high, press reset) and flash
-`firmware_src/release_hex/bd_pressure-rrf-v2.20.hex` using STM32CubeProgrammer:
+`firmware_src/release_hex/bd_pressure-rrf-v2.24.hex` using STM32CubeProgrammer:
 
 ```
-STM32_Programmer_CLI.exe -c port=<COMx> -w bd_pressure-rrf-v2.20.hex -v --start
+STM32_Programmer_CLI.exe -c port=<COMx> -w bd_pressure-rrf-v2.24.hex -v --start
 ```
 
 After flashing, the sensor boots into endstop/probe mode automatically.
@@ -76,7 +76,7 @@ card layout — copy the folder contents directly onto your Duet SD card.
 ### Step 5 — Verify the sensor
 
 Run `M98 P"/macros/bd_version.g"` from DWC. The sensor should respond with
-`bd_pressure-rrf-v2.20` in the DWC Console tab.
+`bd_pressure-rrf-v2.24` in the DWC Console tab.
 
 Run `M98 P"/macros/bd_status.g"` to confirm mode, threshold, and polarity.
 
@@ -139,8 +139,8 @@ If an unrecognised command is received, the sensor responds with `bd_pressure: u
 | Command | Response | Description |
 |---|---|---|
 | `v;` | console message | Firmware version string, formatted as an RRF console message. |
-| `ver;` | ASCII string + `\n` | Firmware version string returned directly over UART (e.g. `bd_pressure-rrf-v2.20`). Read with `M261.2 B32`. Used by `pa_calibrate.g` to log the sensor version. |
-| `mode;` | ASCII string + `\n` | Current operating mode: `pa` or `endstop`. Read with `M261.2 B16`. Used by `pa_calibrate.g` to confirm the sensor is in the correct mode before logging. |
+| `ver;` | single raw byte | Firmware version encoded as `major×100 + minor` (e.g. v2.24 → byte value `224`). Read with `M261.2 B1`. Used by `pa_calibrate.g` to log the sensor version. |
+| `mode;` | single raw byte | Current operating mode: `0` = PA mode, `1` = endstop mode. Read with `M261.2 B1`. Used by `pa_calibrate.g` to confirm the sensor entered PA mode before logging. |
 | `s;` | M291 popup | Full sensor status popup: mode, threshold, invert, version, baud, logging, ADC output state, and current baseline value. |
 | `q;` | console message | Threshold value as a human-readable console message. |
 | `Q;` | single raw byte | Threshold value as a single raw binary byte. Used by `bd_set_threshold.g` via `M261.2`. |
@@ -231,11 +231,11 @@ Each run writes `/sys/pa_calibrate_log.txt` with a `#` comment header followed b
 
 ```
 # bd_pressure PA calibration
-# date=2026-05-10T12:34:56+00:00
-# rrf_version=3.6.0
-# bd_version=bd_pressure-rrf-v2.20
+# date=2026-05-11T12:34:56
+# rrf_version=3.6.2+1
+# bd_version=bd_pressure-rrf-v2.24
 # mode=pa
-# nozzle_temp=210 pa_start=0.0 pa_step=0.002 steps=50
+# extruder=0 nozzle_temp=210 pa_start=0.0 pa_step=0.002 steps=50
 iter,pa,res,lk,rk,Hk,Ha
 0,0.0000,18,6,11,173,206
 1,0.0020,21,9,10,217,244
@@ -304,14 +304,60 @@ M572 D0 S0.0420
 
 Full log: /sys/pa_calibrate_log.txt
 ```
+The extruder index `D` matches the `var.extruder` value set at the top of `pa_calibrate.g`.
 
 **3. SD card file `/sys/pa_result.g`**
-A ready-to-use file written after every successful run:
+A ready-to-use file written after every successful run containing the literal values:
 ```gcode
-M572 D0 S0.0420 ; bd_pressure PA calibration result
+M572 D0 S0.0420
 ```
 Each run overwrites the previous result.  Add `M98 P"/sys/pa_result.g"` to `config.g`
 to load it automatically on every boot.
+
+---
+
+## DWC plugin
+
+The **BdPressurePA** plugin visualises PA calibration logs directly inside DWC — no external tools needed.
+
+### Installation
+
+1. Download `BdPressurePA-1.0.0.zip` from the [plugin repository](https://github.com/placeholder/bd-pressure-dwc-plugin) *(URL to be confirmed)*
+2. In DWC go to **Settings → Plugins → External plugins → Upload plugin**
+3. Select the zip file and click **Install**
+4. A **PA Calibration** tab will appear under the **Plugins** section in the left sidebar
+
+### Loading a log
+
+The plugin can load calibration data three ways:
+- **Load from Duet** — fetches `/sys/pa_calibrate_log.txt` directly from the Duet SD card (requires a completed calibration run)
+- **Drag and drop** — drag a log file onto the upload zone
+- **Browse** — click the zone to open a file picker
+
+### What the plugin shows
+
+| Panel | Content |
+|---|---|
+| Metadata chips | Date, RRF version, bd_pressure version, mode (teal=pa / purple=endstop), nozzle temperature, extruder index, PA sweep parameters |
+| Best PA | Highlighted in green with a one-click **Copy M572** button — uses the correct extruder index from the log |
+| Pressure score (res) | Blue line chart with red dashed best-PA line and green shaded good zone (within 20% of best) |
+| Slopes (lk / rk) | Left and right pressure slope per iteration |
+| Signal quality (Hk / Ha) | Peak heights per iteration — useful for checking sensor signal strength |
+| Analysis panel | Automatic assessment of sweep quality: noise level (CV%), minimum position relative to sweep edges, curve flatness, lk/rk asymmetry |
+| Suggested next sweep | Ready-to-paste `pa_calibrate.g` variable block — either a zoom-in around the best value or a range shift if the minimum is near an edge |
+| Raw data table | All 50 (or N) rows — best iteration highlighted in green |
+
+All analysis runs entirely in the browser on the device loading DWC — nothing is sent to the Duet board.
+
+### Interpreting the results
+
+**res (lower = better)** — the primary score. Look for a clear V-shaped minimum. A flat or noisy curve means either:
+- The PA range is too wide — use the suggested zoom-in parameters and run again
+- There is variability in the extrusion (temperature, vibration) — try a second run to confirm
+
+**lk / rk (slopes)** — should be small and close together at the optimum PA value. A persistent asymmetry (one consistently higher than the other) can indicate a temperature or flow asymmetry in the hotend.
+
+**Hk / Ha (peak heights)** — should be consistent and high (200+). Low or erratic values suggest the sensor is not receiving a strong pressure signal — check wiring, threshold setting, and extrusion amounts.
 
 ---
 

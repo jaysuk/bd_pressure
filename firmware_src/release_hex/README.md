@@ -1,29 +1,40 @@
-# Firmware Download into the sensor
+# Flashing the bd_pressure firmware
 
-1. Press and Hold on the boot button on the sensor
-2. Power on the sensor with usb cable
-3. Release the boot button
-4. Open the STM32CubeProgrammer.exe
-5. Choose the UART port and click connect button in the STM32CubeProgrammer
-6. Open the firmware hex file and click Download
-7. Finish
+## Requirements
 
-This process is the same as bdwidth sensor, here is the video of bdwidth: https://youtu.be/c74Q1chOo8M
+- [STM32CubeProgrammer](https://www.st.com/en/development-tools/stm32cubeprog.html) (free download from ST)
+- USB cable connected to the bd_pressure sensor
+
+## Procedure
+
+1. Hold the **BOOT** button on the sensor
+2. Power on the sensor via USB
+3. Release the BOOT button
+4. Open STM32CubeProgrammer, select the UART port, and click **Connect**
+5. Open the hex file and click **Download**
+6. Press reset (or power cycle) to boot into the new firmware
+
+Video reference (same process as bdwidth): https://youtu.be/c74Q1chOo8M
 
 ---
 
-## Available firmware versions
+## Available firmware
 
-| File | Description |
-|---|---|
-| `bd_pressure-rrf-v2.hex` | RRF + Klipper firmware — PA calibration, status query, flash-persistent threshold |
+| File | Version | Description |
+|---|---|---|
+| `bd_pressure-rrf-v2.24.hex` | v2.24 | Current release — RRF UART firmware |
 
-For full changelog see [CHANGELOG.md](CHANGELOG.md).
+For the full list of changes see [CHANGELOG.md](CHANGELOG.md).
+
+---
 
 ## Verifying the flash
 
-After flashing, open a serial terminal at **38400 baud** and send `v;` — the sensor should respond:
+After flashing, the sensor should appear in the DWC console once wired and `config.g` is set up.
+Run `M98 P"/macros/bd_version.g"` — the console should show `bd_pressure-rrf-v2.24`.
+
+Alternatively, open a serial terminal at **115200 baud** and send `v;` — the sensor will respond with:
 
 ```
-bd_pressure-rrf-v2
+bd_pressure-rrf-v2.24
 ```

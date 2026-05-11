@@ -5,7 +5,7 @@
 ;
 ; Requirements:
 ;   - bd_pressure sensor connected via UART (WAFER/I2C connector)
-;   - Firmware version: bd_pressure-rrf-v2.18 or later
+;   - Firmware version: bd_pressure-rrf-v2.24 or later
 ;   - global.bd_port, global.bd_uart and global.bd_baud set via M98 P"/sys/bd_globals.g"
 ;
 ; How it works:
@@ -15,6 +15,12 @@
 ;   pressure transient; the sensor scores it via pa.lib.
 ;   All 5 pa.lib metrics (res, lk, rk, Hk, Ha) are logged per iteration,
 ;   matching the Klipper R: output format for direct comparison.
+
+; -----------------------------------------------------------------------
+; Guard — ensure bd_globals.g has been run (sets bd_port, bd_uart, bd_baud)
+; -----------------------------------------------------------------------
+if !exists(global.bd_port) || !exists(global.bd_uart) || !exists(global.bd_baud)
+    abort "bd_pressure: global variables not initialised — add M98 P\"/sys/bd_globals.g\" to config.g and reboot"
 
 ; -----------------------------------------------------------------------
 ; Parameters — edit these to match your printer and filament
@@ -120,7 +126,7 @@ echo >>"0:/sys/pa_calibrate_log.txt" {"# date=" ^ state.time}
 echo >>"0:/sys/pa_calibrate_log.txt" {"# rrf_version=" ^ boards[0].firmwareVersion}
 echo >>"0:/sys/pa_calibrate_log.txt" {"# bd_version=bd_pressure-rrf-" ^ var.bd_version}
 echo >>"0:/sys/pa_calibrate_log.txt" {"# mode=" ^ var.bd_mode}
-echo >>"0:/sys/pa_calibrate_log.txt" {"# nozzle_temp=" ^ var.nozzle_temp ^ " pa_start=" ^ var.pa_start ^ " pa_step=" ^ var.pa_step ^ " steps=" ^ var.steps}
+echo >>"0:/sys/pa_calibrate_log.txt" {"# extruder=" ^ var.extruder ^ " nozzle_temp=" ^ var.nozzle_temp ^ " pa_start=" ^ var.pa_start ^ " pa_step=" ^ var.pa_step ^ " steps=" ^ var.steps}
 echo >>"0:/sys/pa_calibrate_log.txt" "iter,pa,res,lk,rk,Hk,Ha"
 
 ; -----------------------------------------------------------------------
@@ -184,9 +190,7 @@ var best_pa = var.pa_start + var.best_i * var.pa_step
 ; -----------------------------------------------------------------------
 M572 D{var.extruder} S{var.best_pa}
 
-M28 /sys/pa_result.g
-M572 D{var.extruder} S{var.best_pa} ; bd_pressure PA calibration result
-M29
+echo >"0:/sys/pa_result.g" {"M572 D" ^ var.extruder ^ " S" ^ var.best_pa}
 M575 P{global.bd_port} S2 B{global.bd_baud}
 
 M118 P0 S{"bd_pressure: calibration complete. Best PA = " ^ var.best_pa ^ " (res=" ^ var.best_score ^ ", step " ^ var.best_i ^ ")"}
