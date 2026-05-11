@@ -49,3 +49,6 @@ Desktop.ini
 
 # macOS
 .DS_Store
+
+# Private macros — kept locally but not published
+duet_sd/sys/pa_calibrate_bed_based.g
