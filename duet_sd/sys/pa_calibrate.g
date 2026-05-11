@@ -167,9 +167,9 @@ while iterations < var.steps
     echo >>"0:/sys/pa_calibrate_log.txt" {iterations ^ "," ^ var.pa ^ "," ^ var.bd_pa[0] ^ "," ^ var.bd_pa[1] ^ "," ^ var.bd_pa[2] ^ "," ^ var.bd_pa[3] ^ "," ^ var.bd_pa[4]}
 
 ; -----------------------------------------------------------------------
-; Step 7 — Find best PA value (skip first 5 as warm-up)
+; Step 7 — Find best PA value (skip first 8 as warm-up)
 ; -----------------------------------------------------------------------
-var skip = 5
+var skip = 8
 if var.skip >= var.steps
     set var.skip = 1
 

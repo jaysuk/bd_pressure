@@ -90,8 +90,10 @@ G4 P4000
 ; Step 4 — Device mode, read version and mode, write log header
 ; -----------------------------------------------------------------------
 M400
+M575 P{global.bd_port} S2 B{global.bd_baud}  ; ensure known state before switching
+G4 P500
 M575 P{global.bd_port} S7 B{global.bd_baud}
-G4 P1000
+G4 P1500
 
 M260.2 P{global.bd_port} S"ver;"
 G4 P300
@@ -150,7 +152,7 @@ while iterations < var.steps
 ; -----------------------------------------------------------------------
 ; Step 6 — Find best PA
 ; -----------------------------------------------------------------------
-var skip = 5
+var skip = 8
 if var.skip >= var.steps
     set var.skip = 1
 
