@@ -89,8 +89,9 @@ G4 P4000
 ; -----------------------------------------------------------------------
 ; Step 4 — Device mode, read version and mode, write log header
 ; -----------------------------------------------------------------------
+M400
 M575 P{global.bd_port} S7 B{global.bd_baud}
-G4 P300
+G4 P1000
 
 M260.2 P{global.bd_port} S"ver;"
 G4 P300
