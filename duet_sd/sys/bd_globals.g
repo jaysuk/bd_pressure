@@ -55,7 +55,7 @@ if !exists(global.bd_live_pa_step)
 if !exists(global.bd_live_steps)
     global bd_live_steps = 50
 if !exists(global.bd_live_warmup_steps)
-    global bd_live_warmup_steps = 5
+    global bd_live_warmup_steps = 8
 if !exists(global.bd_live_hotend_preset)
     global bd_live_hotend_preset = "unknown"
 if !exists(global.bd_live_low_speed)

@@ -92,16 +92,24 @@ G4 P4000
 
 ; -----------------------------------------------------------------------
 ; Step 3b — Warm-up passes at PA=0 (sensor + hotend stabilisation)
+; Each pass alternates direction to avoid a travel move between passes.
 ; -----------------------------------------------------------------------
 if var.warmup_steps > 0
     M572 D{var.extruder} S0
     echo >"0:/sys/pa_live_status.txt" {"state=warmup steps=" ^ var.steps ^ " warmup=" ^ var.warmup_steps}
     M118 P0 S{"bd_pressure: warm-up — " ^ var.warmup_steps ^ " passes at PA=0"}
+    var wu_fwd = true
     while iterations < var.warmup_steps
-        G1 X{var.x_start} Y{var.y_pos} F{var.travel_speed}
-        G1 X{var.x_mid_l} Y{var.y_pos} F{var.low_speed}  E{var.e_slow}
-        G1 X{var.x_mid_r} Y{var.y_pos} F{var.high_speed} E{var.e_fast}
-        G1 X{var.x_end}   Y{var.y_pos} F{var.low_speed}  E{var.e_slow}
+        if var.wu_fwd
+            G1 X{var.x_start} Y{var.y_pos} F{var.travel_speed}
+            G1 X{var.x_mid_l} Y{var.y_pos} F{var.low_speed}  E{var.e_slow}
+            G1 X{var.x_mid_r} Y{var.y_pos} F{var.high_speed} E{var.e_fast}
+            G1 X{var.x_end}   Y{var.y_pos} F{var.low_speed}  E{var.e_slow}
+        else
+            G1 X{var.x_mid_r} Y{var.y_pos} F{var.low_speed}  E{var.e_slow}
+            G1 X{var.x_mid_l} Y{var.y_pos} F{var.high_speed} E{var.e_fast}
+            G1 X{var.x_start} Y{var.y_pos} F{var.low_speed}  E{var.e_slow}
+        set var.wu_fwd = !var.wu_fwd
         M400
         G4 P200
 
@@ -146,6 +154,7 @@ M118 P0 S"bd_pressure: starting PA calibration sweep..."
 
 var scores = vector(var.steps, 0)
 var pa     = var.pa_start
+var fwd    = true
 
 while iterations < var.steps
     set var.pa = var.pa_start + iterations * var.pa_step
@@ -154,10 +163,16 @@ while iterations < var.steps
     echo >"0:/sys/pa_live_status.txt" {"state=running step=" ^ (iterations+1) ^ " steps=" ^ var.steps ^ " pa=" ^ var.pa}
     M118 P0 S{"bd_pressure: step " ^ (iterations + 1) ^ " of " ^ var.steps ^ " — PA " ^ var.pa}
 
-    G1 X{var.x_start} Y{var.y_pos} F{var.travel_speed}
-    G1 X{var.x_mid_l} Y{var.y_pos} F{var.low_speed}  E{var.e_slow}
-    G1 X{var.x_mid_r} Y{var.y_pos} F{var.high_speed} E{var.e_fast}
-    G1 X{var.x_end}   Y{var.y_pos} F{var.low_speed}  E{var.e_slow}
+    if var.fwd
+        G1 X{var.x_start} Y{var.y_pos} F{var.travel_speed}
+        G1 X{var.x_mid_l} Y{var.y_pos} F{var.low_speed}  E{var.e_slow}
+        G1 X{var.x_mid_r} Y{var.y_pos} F{var.high_speed} E{var.e_fast}
+        G1 X{var.x_end}   Y{var.y_pos} F{var.low_speed}  E{var.e_slow}
+    else
+        G1 X{var.x_mid_r} Y{var.y_pos} F{var.low_speed}  E{var.e_slow}
+        G1 X{var.x_mid_l} Y{var.y_pos} F{var.high_speed} E{var.e_fast}
+        G1 X{var.x_start} Y{var.y_pos} F{var.low_speed}  E{var.e_slow}
+    set var.fwd = !var.fwd
     M400
     G4 P200
 
