@@ -30,7 +30,7 @@ if !exists(global.bd_live_tool)
 ; Parameters from plugin globals
 ; -----------------------------------------------------------------------
 var tool          = global.bd_live_tool
-var extruder      = global.bd_live_extruder
+var extruder      = tools[global.bd_live_tool].extruders[0]
 var nozzle_temp   = global.bd_live_nozzle_temp
 var pa_start      = global.bd_live_pa_start
 var pa_step       = global.bd_live_pa_step

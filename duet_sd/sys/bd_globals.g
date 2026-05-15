@@ -44,8 +44,6 @@ if !exists(global.bd_baud)
 ; -----------------------------------------------------------------------
 if !exists(global.bd_live_tool)
     global bd_live_tool = 0
-if !exists(global.bd_live_extruder)
-    global bd_live_extruder = 0
 if !exists(global.bd_live_nozzle_temp)
     global bd_live_nozzle_temp = 210
 if !exists(global.bd_live_pa_start)
