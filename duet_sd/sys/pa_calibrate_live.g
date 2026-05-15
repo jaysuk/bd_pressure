@@ -36,6 +36,7 @@ var pa_start      = global.bd_live_pa_start
 var pa_step       = global.bd_live_pa_step
 var steps         = global.bd_live_steps
 var warmup_steps  = global.bd_live_warmup_steps
+var bidirectional = global.bd_live_bidirectional
 var hotend_preset = global.bd_live_hotend_preset
 var low_speed     = global.bd_live_low_speed
 var high_speed    = global.bd_live_high_speed
@@ -92,7 +93,7 @@ G4 P4000
 
 ; -----------------------------------------------------------------------
 ; Step 3b — Warm-up passes at PA=0 (sensor + hotend stabilisation)
-; Each pass alternates direction to avoid a travel move between passes.
+; Passes alternate direction when bidirectional=true, halving travel time.
 ; -----------------------------------------------------------------------
 if var.warmup_steps > 0
     M572 D{var.extruder} S0
@@ -100,7 +101,7 @@ if var.warmup_steps > 0
     M118 P0 S{"bd_pressure: warm-up — " ^ var.warmup_steps ^ " passes at PA=0"}
     var wu_fwd = true
     while iterations < var.warmup_steps
-        if var.wu_fwd
+        if var.wu_fwd || !var.bidirectional
             G1 X{var.x_start} Y{var.y_pos} F{var.travel_speed}
             G1 X{var.x_mid_l} Y{var.y_pos} F{var.low_speed}  E{var.e_slow}
             G1 X{var.x_mid_r} Y{var.y_pos} F{var.high_speed} E{var.e_fast}
@@ -163,7 +164,7 @@ while iterations < var.steps
     echo >"0:/sys/pa_live_status.txt" {"state=running step=" ^ (iterations+1) ^ " steps=" ^ var.steps ^ " pa=" ^ var.pa}
     M118 P0 S{"bd_pressure: step " ^ (iterations + 1) ^ " of " ^ var.steps ^ " — PA " ^ var.pa}
 
-    if var.fwd
+    if var.fwd || !var.bidirectional
         G1 X{var.x_start} Y{var.y_pos} F{var.travel_speed}
         G1 X{var.x_mid_l} Y{var.y_pos} F{var.low_speed}  E{var.e_slow}
         G1 X{var.x_mid_r} Y{var.y_pos} F{var.high_speed} E{var.e_fast}
