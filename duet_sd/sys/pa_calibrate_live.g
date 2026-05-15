@@ -207,18 +207,21 @@ var best_pa = var.pa_start + var.best_i * var.pa_step
 ; -----------------------------------------------------------------------
 M572 D{var.extruder} S{var.best_pa}
 echo >"0:/sys/pa_result.g" {"M572 D" ^ var.extruder ^ " S" ^ var.best_pa}
-M575 P{global.bd_port} S2 B{global.bd_baud}
-
-echo >"0:/sys/pa_live_status.txt" {"state=done steps=" ^ var.steps ^ " pa=" ^ var.best_pa ^ " best_pa=" ^ var.best_pa ^ " best_res=" ^ var.best_score}
-
-M118 P0 S{"bd_pressure: calibration complete. Best PA = " ^ var.best_pa ^ " (res=" ^ var.best_score ^ ", step " ^ var.best_i ^ ")"}
-M291 P{"<b>Calibration complete!</b><br><b>Best Pressure Advance:</b> " ^ var.best_pa ^ "<br><br><b>Add to config.g:</b><br>M572 D" ^ var.extruder ^ " S" ^ var.best_pa ^ "<br><br>Full log: /sys/pa_calibrate_log.txt"} R"bd_pressure PA Result" S2
 
 ; -----------------------------------------------------------------------
 ; Step 8 — Restore sensor and cool down
 ; -----------------------------------------------------------------------
 M260.2 P{global.bd_port} S"e;"
-G4 P200
+G4 P500
+M575 P{global.bd_port} S2 B{global.bd_baud}
+G4 P500
 M568 P{var.tool} A0
 M400
+
+; Write done state after sensor is safely reset so plugin tab-switch
+; and any further port access don't race with the mode change
+echo >"0:/sys/pa_live_status.txt" {"state=done steps=" ^ var.steps ^ " pa=" ^ var.best_pa ^ " best_pa=" ^ var.best_pa ^ " best_res=" ^ var.best_score}
+
+M118 P0 S{"bd_pressure: calibration complete. Best PA = " ^ var.best_pa ^ " (res=" ^ var.best_score ^ ", step " ^ var.best_i ^ ")"}
+M291 P{"<b>Calibration complete!</b><br><b>Best Pressure Advance:</b> " ^ var.best_pa ^ "<br><br><b>Add to config.g:</b><br>M572 D" ^ var.extruder ^ " S" ^ var.best_pa ^ "<br><br>Check the <b>Log Viewer</b> tab for analysis and next-step recommendations."} R"bd_pressure PA Result" S2
 M118 P0 S"bd_pressure: done. Log saved to /sys/pa_calibrate_log.txt"
